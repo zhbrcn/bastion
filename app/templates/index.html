@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <style>
+    :root {
+      color-scheme: dark light;
+      --bg: #0d1117;
+      --card: #161b22;
+      --card-alt: #11161d;
+      --border: #21262d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --primary: #58a6ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --warning-soft: rgba(210, 153, 34, 0.1);
+      --chip-soft: rgba(88, 166, 255, 0.12);
+      --radius-card: 6px;
+      --radius-ui: 4px;
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      --font-code: "SF Mono", Monaco, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #ffffff;
+        --card: #f6f8fa;
+        --card-alt: #ffffff;
+        --border: #d0d7de;
+        --text: #1f2328;
+        --muted: #656d76;
+        --primary: #0969da;
+        --success: #1a7f37;
+        --warning: #9a6700;
+        --warning-soft: rgba(210, 153, 34, 0.12);
+        --chip-soft: rgba(9, 105, 218, 0.08);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-ui); }
+    body { line-height: 1.5; }
+    button, input, a { font: inherit; }
+    button { cursor: pointer; }
+    a { color: var(--primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .page { max-width: 1280px; margin: 0 auto; padding: 24px; }
+    .row { display: flex; gap: 16px; }
+    .wrap { flex-wrap: wrap; }
+    .between { justify-content: space-between; }
+    .center { align-items: center; }
+    .topbar { align-items: flex-start; margin-bottom: 24px; }
+    .title-wrap h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; }
+    .title-wrap p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+    .button, .copy-button, .auth-button {
+      min-height: 36px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-ui);
+      background: var(--card);
+      color: var(--text);
+      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .button:hover, .copy-button:hover, .auth-button:hover { background: var(--card-alt); text-decoration: none; }
+    .button.primary, .copy-button.primary, .auth-button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .copy-button.is-copied { background: var(--success); border-color: var(--success); color: #fff; }
+    .statusbar {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, max-content));
+      gap: 12px;
+      margin-bottom: 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .auth-banner {
+      display: none;
+      margin-bottom: 24px;
+      padding: 16px;
+      border: 1px solid rgba(210, 153, 34, 0.35);
+      border-radius: var(--radius-card);
+      background: var(--warning-soft);
+    }
+    .auth-banner.visible { display: block; }
+    .auth-list { display: grid; gap: 10px; }
+    .auth-item, .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+    }
+    .auth-item { padding: 12px; }
+    .auth-item strong { display: block; margin-bottom: 2px; }
+    .controls { align-items: flex-start; margin-bottom: 24px; }
+    .tag-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+    .tag-button, .chip, .session-badge {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--card);
+      color: var(--muted);
+    }
+    .tag-button { min-height: 32px; padding: 6px 10px; }
+    .tag-button.active { background: var(--chip-soft); color: var(--primary); border-color: rgba(88, 166, 255, 0.35); }
+    .search-wrap { width: min(320px, 100%); }
+    .search-input, .user-input {
+      width: 100%;
+      min-height: 38px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-ui);
+      background: var(--card);
+      color: var(--text);
+      outline: none;
+    }
+    .search-input:focus, .user-input:focus { border-color: var(--primary); }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 16px; }
+    .card { padding: 16px; display: grid; gap: 14px; }
+    .card.offline { opacity: 0.5; }
+    .card-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+    .hostname-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .hostname { font-size: 18px; font-weight: 600; word-break: break-word; }
+    .meta, .help { color: var(--muted); }
+    .meta { font-size: 14px; }
+    .help { font-size: 12px; }
+    .status-pill { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; white-space: nowrap; }
+    .dot { font-size: 14px; line-height: 1; }
+    .online { color: var(--success); }
+    .offline-dot { color: var(--muted); }
+    .pending { color: var(--warning); }
+    .chip, .session-badge { display: inline-flex; align-items: center; min-height: 26px; padding: 2px 8px; font-size: 12px; }
+    .field { display: grid; gap: 6px; }
+    .field label { color: var(--muted); font-size: 13px; }
+    .command-box { display: grid; gap: 8px; }
+    .command-box code {
+      display: block;
+      overflow-x: auto;
+      white-space: nowrap;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-ui);
+      background: var(--card-alt);
+      font-family: var(--font-code);
+      font-size: 13px;
+    }
+    .empty-state, .loading-state {
+      padding: 32px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      background: var(--card);
+      text-align: center;
+      color: var(--muted);
+    }
+    .footer { margin-top: 24px; color: var(--muted); font-size: 13px; }
+    .mono { font-family: var(--font-code); }
+    .hidden { display: none !important; }
+
+    @media (max-width: 767px) {
+      .page { padding: 16px; }
+      .topbar, .controls, .footer, .auth-item, .card-actions, .auth-head { flex-direction: column; align-items: stretch; }
+      .statusbar { grid-template-columns: 1fr; gap: 6px; }
+      .cards { grid-template-columns: 1fr; }
+      .hostname { font-size: 16px; }
+      .button, .copy-button, .auth-button { width: 100%; }
+      .search-wrap { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="row between wrap topbar">
+      <div class="title-wrap">
+        <h1 id="page-title">{{ title }}</h1>
+        <p id="page-subtitle">{{ subtitle }}</p>
+      </div>
+      <div class="row wrap">
+        <a class="button" href="/api/ssh-config">&#19979;&#36733; SSH config</a>
+        <button class="button" id="refresh-button" type="button">&#21047;&#26032;</button>
+      </div>
+    </header>
+
+    <section class="statusbar">
+      <div id="summary-total">&#24635;&#35745; 0 &#21488;&#26381;&#21153;&#22120;</div>
+      <div id="summary-online">&#22312;&#32447; 0 &#21488;</div>
+      <div id="summary-bind">&#38754;&#26495;&#22320;&#22336; --</div>
+    </section>
+
+    <section class="auth-banner" id="auth-banner" aria-live="polite">
+      <div class="row between wrap auth-head" style="margin-bottom: 12px;">
+        <div>
+          <div style="font-weight: 600;">&#20197;&#19979;&#33410;&#28857;&#38656;&#35201; Tailscale &#35748;&#35777;</div>
+          <div class="help">&#39318;&#27425;&#36830;&#25509;&#26102;&#22914;&#26524;&#20986;&#29616;&#27983;&#35272;&#22120;&#35748;&#35777;&#38142;&#25509;&#65292;&#21487;&#22312;&#36825;&#37324;&#22788;&#29702;</div>
+        </div>
+      </div>
+      <div class="auth-list" id="auth-list"></div>
+    </section>
+
+    <section class="row between wrap controls">
+      <div class="tag-filters" id="tag-filters"></div>
+      <div class="search-wrap">
+        <input class="search-input" id="search-input" type="search" placeholder="&#25628;&#32034; hostname &#25110;&#22791;&#27880;&#65292;&#25353; / &#24555;&#36895;&#32858;&#28966;" autocomplete="off" spellcheck="false">
+      </div>
+    </section>
+
+    <section id="content-area">
+      <div class="loading-state" id="loading-state">&#27491;&#22312;&#35835;&#21462; Tailscale &#33410;&#28857;&#21015;&#34920;&#8230;</div>
+      <div class="cards hidden" id="cards" aria-live="polite"></div>
+      <div class="empty-state hidden" id="empty-state"></div>
+    </section>
+
+    <footer class="row between wrap footer">
+      <div id="last-updated">&#26368;&#21518;&#21047;&#26032;&#65306;&#23578;&#26410;&#21047;&#26032;</div>
+      <div class="mono" id="jumpbox-hint">jumpbox: --</div>
+    </footer>
+  </main>
+
+  <script>
+    (() => {
+      const TEXT = {
+        statusPending: "\u5f85\u8ba4\u8bc1",
+        statusOnline: "\u5728\u7ebf",
+        statusOffline: "\u79bb\u7ebf",
+        lastRefreshNever: "\u6700\u540e\u5237\u65b0\uff1a\u5c1a\u672a\u5237\u65b0",
+        lastRefreshNow: "\u6700\u540e\u5237\u65b0\uff1a\u521a\u521a",
+        lastRefreshAgo: (seconds) => `\u6700\u540e\u5237\u65b0\uff1a${seconds} \u79d2\u524d`,
+        totalServers: (count) => `\u603b\u8ba1 ${count} \u53f0\u670d\u52a1\u5668`,
+        onlineServers: (count) => `\u5728\u7ebf ${count} \u53f0`,
+        filteredServers: (count, online) => `\u5f53\u524d\u7ed3\u679c ${count} \u53f0\uff0c\u5176\u4e2d\u5728\u7ebf ${online} \u53f0`,
+        bindAddress: (host, port) => `\u9762\u677f\u5730\u5740 ${host}:${port}`,
+        subtitle: (text, total, online) => `${text} \u00b7 \u5171 ${total} \u53f0\u670d\u52a1\u5668 \u00b7 ${online} \u53f0\u5728\u7ebf`,
+        allTag: (count) => `\u5168\u90e8 ${count}`,
+        pendingAuthHelp: "\u68c0\u6d4b\u5230\u5f85\u5904\u7406\u8ba4\u8bc1\u94fe\u63a5",
+        openAuth: "\u6253\u5f00\u8ba4\u8bc1\u94fe\u63a5",
+        authDone: "\u5df2\u5b8c\u6210",
+        noTag: "\u65e0\u6807\u7b7e",
+        noNote: "\u65e0\u5907\u6ce8",
+        activeSession: "\u25c7 \u6d3b\u8dc3\u4f1a\u8bdd",
+        userLabel: "\u7528\u6237",
+        copyHelp: "\u590d\u5236\u540e\u7c98\u8d34\u5230\u672c\u5730 SSH \u5ba2\u6237\u7aef\u5373\u53ef\u8fde\u63a5",
+        systemPrefix: "\u7cfb\u7edf: ",
+        copy: "\u590d\u5236",
+        copied: "\u5df2\u590d\u5236 \u2713",
+        copyFailed: "\u590d\u5236\u5931\u8d25",
+        emptyNetwork: "Tailscale \u7f51\u7edc\u5185\u6682\u65f6\u65e0\u5176\u4ed6\u8282\u70b9",
+        emptySearch: "\u672a\u627e\u5230\u5339\u914d\u7684\u670d\u52a1\u5668",
+        loadFailed: "\u8bfb\u53d6\u8282\u70b9\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5 tailscale \u4e0e\u670d\u52a1\u72b6\u6001",
+      };
+
+      const fallbackInterval = {{ refresh_interval|tojson }};
+      const state = {
+        data: null,
+        search: "",
+        activeTag: "",
+        lastFetchedAt: 0,
+        refreshTimer: null,
+        tickTimer: null,
+        copyTimers: new Map(),
+      };
+
+      const el = {
+        pageTitle: document.getElementById("page-title"),
+        pageSubtitle: document.getElementById("page-subtitle"),
+        summaryTotal: document.getElementById("summary-total"),
+        summaryOnline: document.getElementById("summary-online"),
+        summaryBind: document.getElementById("summary-bind"),
+        authBanner: document.getElementById("auth-banner"),
+        authList: document.getElementById("auth-list"),
+        tagFilters: document.getElementById("tag-filters"),
+        searchInput: document.getElementById("search-input"),
+        refreshButton: document.getElementById("refresh-button"),
+        loadingState: document.getElementById("loading-state"),
+        cards: document.getElementById("cards"),
+        emptyState: document.getElementById("empty-state"),
+        lastUpdated: document.getElementById("last-updated"),
+        jumpboxHint: document.getElementById("jumpbox-hint"),
+      };
+
+      function escapeHtml(value) {
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function shellEscape(value) {
+        return `'${String(value).replace(/'/g, `'\\''`)}'`;
+      }
+
+      function buildCommand(hostname, targetUser) {
+        const sessionName = `${state.data.tmux_prefix}${hostname}`;
+        const remote = `tmux new-session -A -s ${shellEscape(sessionName)} bastion-ssh ${shellEscape(hostname)} ${shellEscape(targetUser)}`;
+        return `ssh -t ${state.data.jumpbox_user}@${state.data.jumpbox_host} "${remote}"`;
+      }
+
+      function statusMeta(server) {
+        if (server.pending_auth_url) {
+          return { label: TEXT.statusPending, dot: "\u25cf", className: "pending" };
+        }
+        if (server.online) {
+          return { label: TEXT.statusOnline, dot: "\u25cf", className: "online" };
+        }
+        return { label: TEXT.statusOffline, dot: "\u25cb", className: "offline-dot" };
+      }
+
+      function relativeTime(timestamp) {
+        if (!timestamp) {
+          return TEXT.lastRefreshNever;
+        }
+        const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+        return seconds < 2 ? TEXT.lastRefreshNow : TEXT.lastRefreshAgo(seconds);
+      }
+
+      function updateLastUpdated() {
+        el.lastUpdated.textContent = relativeTime(state.lastFetchedAt);
+      }
+
+      function filteredServers() {
+        if (!state.data) {
+          return [];
+        }
+        const keyword = state.search.trim().toLowerCase();
+        return state.data.servers.filter((server) => {
+          const tagOk = !state.activeTag || (server.tags || []).includes(state.activeTag);
+          const haystack = `${server.hostname} ${server.note || ""}`.toLowerCase();
+          const keywordOk = !keyword || haystack.includes(keyword);
+          return tagOk && keywordOk;
+        });
+      }
+
+      function renderSummary(servers) {
+        const all = state.data.servers;
+        const online = all.filter((server) => server.online).length;
+        const filteredOnline = servers.filter((server) => server.online).length;
+        el.summaryTotal.textContent = TEXT.totalServers(all.length);
+        el.summaryOnline.textContent = servers.length === all.length
+          ? TEXT.onlineServers(online)
+          : TEXT.filteredServers(servers.length, filteredOnline);
+        el.summaryBind.textContent = TEXT.bindAddress(state.data.bind_address, state.data.port);
+        el.jumpboxHint.textContent = `jumpbox: ${state.data.jumpbox_user}@${state.data.jumpbox_host}`;
+        el.pageTitle.textContent = state.data.title;
+        el.pageSubtitle.textContent = TEXT.subtitle(state.data.subtitle, all.length, online);
+      }
+
+      function renderTags() {
+        const counts = new Map([["", state.data.servers.length]]);
+        state.data.servers.forEach((server) => {
+          (server.tags || []).forEach((tag) => {
+            counts.set(tag, (counts.get(tag) || 0) + 1);
+          });
+        });
+
+        const tags = ["", ...Array.from(counts.keys()).filter(Boolean).sort()];
+        el.tagFilters.innerHTML = tags.map((tag) => {
+          const active = state.activeTag === tag;
+          const label = tag ? `${tag} ${counts.get(tag)}` : TEXT.allTag(counts.get(""));
+          return `<button class="tag-button ${active ? "active" : ""}" type="button" data-tag="${escapeHtml(tag)}">${escapeHtml(label)}</button>`;
+        }).join("");
+
+        el.tagFilters.querySelectorAll("[data-tag]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const tag = button.getAttribute("data-tag") || "";
+            state.activeTag = state.activeTag === tag ? "" : tag;
+            render();
+          });
+        });
+      }
+
+      function renderAuthBanner() {
+        const entries = Object.entries(state.data.pending_auth || {});
+        if (!entries.length) {
+          el.authBanner.classList.remove("visible");
+          el.authList.innerHTML = "";
+          return;
+        }
+
+        el.authBanner.classList.add("visible");
+        el.authList.innerHTML = entries.map(([hostname, url]) => `
+          <article class="auth-item">
+            <div class="row between wrap center">
+              <div>
+                <strong>${escapeHtml(hostname)}</strong>
+                <div class="help">${TEXT.pendingAuthHelp}</div>
+              </div>
+              <div class="row wrap">
+                <a class="auth-button primary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${TEXT.openAuth}</a>
+                <button class="auth-button" type="button" data-clear-auth="${escapeHtml(hostname)}">${TEXT.authDone}</button>
+              </div>
+            </div>
+          </article>
+        `).join("");
+
+        el.authList.querySelectorAll("[data-clear-auth]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            const hostname = button.getAttribute("data-clear-auth");
+            button.disabled = true;
+            try {
+              await fetch("/api/clear-auth", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ hostname }),
+              });
+            } catch (error) {
+              console.error("clear auth failed", error);
+            }
+            await loadServers(true);
+          });
+        });
+      }
+
+      function renderCards(servers) {
+        el.cards.innerHTML = servers.map((server, index) => {
+          const meta = statusMeta(server);
+          const tags = server.tags && server.tags.length
+            ? server.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")
+            : `<span class="chip">${TEXT.noTag}</span>`;
+          const note = server.note ? escapeHtml(server.note) : (server.online ? TEXT.noNote : TEXT.statusOffline);
+          const command = buildCommand(server.hostname, server.user);
+
+          return `
+            <article class="card ${server.online ? "" : "offline"}">
+              <div class="card-head">
+                <div>
+                  <div class="hostname-line">
+                    <div class="hostname">${escapeHtml(server.hostname)}</div>
+                    ${server.tmux_session_exists ? `<span class="session-badge">${TEXT.activeSession}</span>` : ""}
+                  </div>
+                  <div class="meta">${escapeHtml(server.ip)} · ${note}</div>
+                </div>
+                <div class="status-pill">
+                  <span class="dot ${meta.className}">${meta.dot}</span>
+                  <span>${meta.label}</span>
+                </div>
+              </div>
+              <div class="row wrap">${tags}</div>
+              <div class="field">
+                <label for="user-${index}">${TEXT.userLabel}</label>
+                <input class="user-input" id="user-${index}" data-user-input="${escapeHtml(server.hostname)}" type="text" value="${escapeHtml(server.user)}" autocomplete="off" spellcheck="false">
+              </div>
+              <div class="command-box">
+                <div class="help">${TEXT.copyHelp}</div>
+                <code data-command="${escapeHtml(server.hostname)}">${escapeHtml(command)}</code>
+              </div>
+              <div class="row between wrap center card-actions">
+                <div class="help">${TEXT.systemPrefix}${escapeHtml(server.os || "unknown")}</div>
+                <button class="copy-button primary" type="button" data-copy="${escapeHtml(server.hostname)}">${TEXT.copy}</button>
+              </div>
+            </article>
+          `;
+        }).join("");
+
+        el.cards.querySelectorAll("[data-user-input]").forEach((input) => {
+          input.addEventListener("input", () => {
+            const hostname = input.getAttribute("data-user-input");
+            const code = el.cards.querySelector(`[data-command="${CSS.escape(hostname)}"]`);
+            if (!code) {
+              return;
+            }
+            const targetUser = input.value.trim() || state.data.default_target_user;
+            code.textContent = buildCommand(hostname, targetUser);
+          });
+        });
+
+        el.cards.querySelectorAll("[data-copy]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            const hostname = button.getAttribute("data-copy");
+            const code = el.cards.querySelector(`[data-command="${CSS.escape(hostname)}"]`);
+            if (!code) {
+              return;
+            }
+            try {
+              await navigator.clipboard.writeText(code.textContent || "");
+              button.classList.add("is-copied");
+              button.textContent = TEXT.copied;
+              if (state.copyTimers.has(button)) {
+                clearTimeout(state.copyTimers.get(button));
+              }
+              const timer = window.setTimeout(() => {
+                button.classList.remove("is-copied");
+                button.textContent = TEXT.copy;
+                state.copyTimers.delete(button);
+              }, 2000);
+              state.copyTimers.set(button, timer);
+            } catch (error) {
+              console.error("copy failed", error);
+              button.textContent = TEXT.copyFailed;
+              window.setTimeout(() => {
+                button.textContent = TEXT.copy;
+              }, 2000);
+            }
+          });
+        });
+      }
+
+      function renderEmptyState(servers) {
+        if (state.data.servers.length === 0) {
+          el.emptyState.textContent = TEXT.emptyNetwork;
+        } else if (servers.length === 0) {
+          el.emptyState.textContent = TEXT.emptySearch;
+        } else {
+          el.emptyState.textContent = "";
+        }
+      }
+
+      function render() {
+        if (!state.data) {
+          return;
+        }
+        const servers = filteredServers();
+        renderSummary(servers);
+        renderTags();
+        renderAuthBanner();
+        renderEmptyState(servers);
+        updateLastUpdated();
+        el.loadingState.classList.add("hidden");
+
+        if (servers.length) {
+          el.cards.classList.remove("hidden");
+          el.emptyState.classList.add("hidden");
+          renderCards(servers);
+        } else {
+          el.cards.classList.add("hidden");
+          el.cards.innerHTML = "";
+          el.emptyState.classList.remove("hidden");
+        }
+      }
+
+      function scheduleRefresh() {
+        if (state.refreshTimer) {
+          clearInterval(state.refreshTimer);
+        }
+        const interval = Number(state.data.refresh_interval || fallbackInterval);
+        if (interval > 0) {
+          state.refreshTimer = window.setInterval(() => {
+            loadServers(true);
+          }, interval * 1000);
+        }
+      }
+
+      async function loadServers(silent = false) {
+        if (!silent && !state.data) {
+          el.loadingState.classList.remove("hidden");
+        }
+        try {
+          const response = await fetch("/api/servers", { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          state.data = await response.json();
+          state.lastFetchedAt = Date.now();
+          render();
+          scheduleRefresh();
+        } catch (error) {
+          console.error("load servers failed", error);
+          if (!state.data) {
+            el.loadingState.classList.add("hidden");
+            el.cards.classList.add("hidden");
+            el.emptyState.classList.remove("hidden");
+            el.emptyState.textContent = TEXT.loadFailed;
+          }
+        }
+      }
+
+      function bindEvents() {
+        el.searchInput.addEventListener("input", () => {
+          state.search = el.searchInput.value;
+          render();
+        });
+
+        el.refreshButton.addEventListener("click", () => {
+          loadServers(true);
+        });
+
+        document.addEventListener("keydown", (event) => {
+          if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+            if (event.key === "Escape" && event.target === el.searchInput) {
+              el.searchInput.value = "";
+              state.search = "";
+              render();
+              event.preventDefault();
+            }
+            return;
+          }
+
+          if (event.key === "/") {
+            event.preventDefault();
+            el.searchInput.focus();
+            el.searchInput.select();
+          } else if (event.key === "Escape") {
+            el.searchInput.value = "";
+            state.search = "";
+            render();
+          } else if (event.key === "r" || event.key === "R") {
+            event.preventDefault();
+            loadServers(true);
+          }
+        });
+
+        state.tickTimer = window.setInterval(updateLastUpdated, 1000);
+      }
+
+      bindEvents();
+      loadServers(false);
+    })();
+  </script>
+</body>
+</html>

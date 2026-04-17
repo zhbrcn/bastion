@@ -1,0 +1,28 @@
+# Bastion 全局配置
+
+web:
+  # Web 面板端口
+  port: 1234
+  # 绑定地址: auto=自动探测 Tailscale IP, 或手动填写 IP
+  bind_address: auto
+
+jumpbox:
+  # 生成复制命令时使用的跳板机地址
+  # auto=使用 Tailscale MagicDNS hostname, 或自定义如 jumpbox.example.com
+  host: auto
+  # SSH 到跳板机时使用的用户名
+  ssh_user: root
+
+defaults:
+  # 连接目标服务器时的默认用户名
+  target_user: root
+  # tmux session 命名前缀(留空则 hostname 本身作为 session 名)
+  tmux_prefix: ""
+
+ui:
+  # 面板标题
+  title: "Bastion"
+  # 副标题
+  subtitle: "跳板机管理面板"
+  # 自动刷新间隔(秒), 0=禁用
+  refresh_interval: 10

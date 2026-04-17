@@ -1,0 +1,18 @@
+# 按 Tailscale hostname 覆盖默认配置
+# hostname 即 `tailscale status` 中显示的机器名
+overrides:
+  # 示例配置, 去掉注释后使用:
+  #
+  # web-prod-01:
+  #   user: ubuntu               # 覆盖默认 target_user
+  #   note: "生产 Web 服务器"     # 面板显示的备注
+  #   tags: [production, web]    # 自定义标签(会与 Tailscale tags 合并去重)
+  #   hidden: false              # 是否在面板隐藏(默认 false)
+  #
+  # dev-db:
+  #   user: postgres
+  #   note: "开发数据库"
+  #   tags: [dev, database]
+  #
+  # internal-test:
+  #   hidden: true               # 完全在面板隐藏

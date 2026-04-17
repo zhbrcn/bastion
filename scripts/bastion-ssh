@@ -1,0 +1,51 @@
+#!/bin/bash
+# bastion-ssh: 封装 tailscale ssh，捕获 Tailscale 认证 URL
+# 用法: bastion-ssh <hostname> <user>
+
+set -uo pipefail
+
+TARGET_HOST="${1:-}"
+TARGET_USER="${2:-root}"
+AUTH_DIR="/tmp/bastion-auth"
+AUTH_FILE=""
+SCRIPT_LOG=""
+MONITOR_PID=""
+
+if [[ -z "${TARGET_HOST}" ]]; then
+    echo "Usage: bastion-ssh <hostname> <user>" >&2
+    exit 2
+fi
+
+AUTH_FILE="${AUTH_DIR}/${TARGET_HOST}.url"
+mkdir -p "${AUTH_DIR}"
+
+cleanup() {
+    [[ -n "${MONITOR_PID}" ]] && kill "${MONITOR_PID}" 2>/dev/null || true
+    [[ -n "${MONITOR_PID}" ]] && wait "${MONITOR_PID}" 2>/dev/null || true
+    [[ -n "${AUTH_FILE}" ]] && rm -f "${AUTH_FILE}" 2>/dev/null || true
+    [[ -n "${SCRIPT_LOG}" ]] && rm -f "${SCRIPT_LOG}" 2>/dev/null || true
+}
+
+trap cleanup EXIT INT TERM
+
+SCRIPT_LOG="$(mktemp /tmp/bastion-ssh-log.XXXXXX)"
+
+(
+    while true; do
+        if [[ -s "${SCRIPT_LOG}" ]]; then
+            URL="$(grep -oE 'https://login\.tailscale\.com/a/[A-Za-z0-9]+' "${SCRIPT_LOG}" 2>/dev/null | head -n1 || true)"
+            if [[ -n "${URL}" ]]; then
+                printf '%s\n' "${URL}" > "${AUTH_FILE}"
+            fi
+
+            if grep -Eq 'Welcome|Last login|Linux|Connected|Starting session' "${SCRIPT_LOG}" 2>/dev/null; then
+                rm -f "${AUTH_FILE}" 2>/dev/null || true
+            fi
+        fi
+        sleep 1
+    done
+) &
+MONITOR_PID=$!
+
+script -q -f -c "tailscale ssh ${TARGET_USER}@${TARGET_HOST}" "${SCRIPT_LOG}"
+exit $?
