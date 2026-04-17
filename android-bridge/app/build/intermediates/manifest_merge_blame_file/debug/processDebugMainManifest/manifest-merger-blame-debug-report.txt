@@ -1,0 +1,172 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.bastion.bridge"
+4    android:versionCode="1"
+5    android:versionName="0.1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="26"
+9        android:targetSdkVersion="34" />
+10
+11    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+11-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:4:5-73
+11-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:4:22-70
+12
+13    <queries>
+13-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:6:5-11:15
+14        <package android:name="com.termux" />
+14-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:7:9-46
+14-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:7:18-43
+15
+16        <intent>
+16-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:8:9-10:18
+17            <action android:name="com.termux.RUN_COMMAND" />
+17-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:9:13-61
+17-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:9:21-58
+18        </intent>
+19    </queries>
+20
+21    <permission
+21-->[androidx.core:core:1.13.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\9c95af8a3d8e23b4851e56a1d877f495\transformed\core-1.13.1\AndroidManifest.xml:22:5-24:47
+22        android:name="com.bastion.bridge.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+22-->[androidx.core:core:1.13.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\9c95af8a3d8e23b4851e56a1d877f495\transformed\core-1.13.1\AndroidManifest.xml:23:9-81
+23        android:protectionLevel="signature" />
+23-->[androidx.core:core:1.13.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\9c95af8a3d8e23b4851e56a1d877f495\transformed\core-1.13.1\AndroidManifest.xml:24:9-44
+24
+25    <uses-permission android:name="com.bastion.bridge.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+25-->[androidx.core:core:1.13.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\9c95af8a3d8e23b4851e56a1d877f495\transformed\core-1.13.1\AndroidManifest.xml:26:5-97
+25-->[androidx.core:core:1.13.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\9c95af8a3d8e23b4851e56a1d877f495\transformed\core-1.13.1\AndroidManifest.xml:26:22-94
+26
+27    <application
+27-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:13:5-43:19
+28        android:allowBackup="true"
+28-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:14:9-35
+29        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+29-->[androidx.core:core:1.13.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\9c95af8a3d8e23b4851e56a1d877f495\transformed\core-1.13.1\AndroidManifest.xml:28:18-86
+30        android:debuggable="true"
+31        android:extractNativeLibs="false"
+32        android:icon="@android:drawable/sym_def_app_icon"
+32-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:15:9-58
+33        android:label="@string/app_name"
+33-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:16:9-41
+34        android:roundIcon="@android:drawable/sym_def_app_icon"
+34-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:17:9-63
+35        android:supportsRtl="true"
+35-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:18:9-35
+36        android:testOnly="true"
+37        android:theme="@style/Theme.BastionBridge" >
+37-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:19:9-51
+38        <activity
+38-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:21:9-42:20
+39            android:name="com.bastion.bridge.MainActivity"
+39-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:22:13-41
+40            android:excludeFromRecents="true"
+40-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:23:13-46
+41            android:exported="true"
+41-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:24:13-36
+42            android:launchMode="singleTask"
+42-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:25:13-44
+43            android:noHistory="true"
+43-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:26:13-37
+44            android:theme="@style/Theme.BastionBridge" >
+44-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:27:13-55
+45            <intent-filter>
+45-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:29:13-32:29
+46                <action android:name="android.intent.action.MAIN" />
+46-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:30:17-69
+46-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:30:25-66
+47
+48                <category android:name="android.intent.category.LAUNCHER" />
+48-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:31:17-77
+48-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:31:27-74
+49            </intent-filter>
+50            <intent-filter>
+50-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:34:13-41:29
+51                <action android:name="android.intent.action.VIEW" />
+51-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:35:17-69
+51-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:35:25-66
+52
+53                <category android:name="android.intent.category.DEFAULT" />
+53-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:37:17-76
+53-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:37:27-73
+54                <category android:name="android.intent.category.BROWSABLE" />
+54-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:38:17-78
+54-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:38:27-75
+55
+56                <data
+56-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:40:17-73
+57                    android:host="connect"
+57-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:40:48-70
+58                    android:scheme="bastion" />
+58-->C:\Users\Brz\Desktop\bastion\android-bridge\app\src\main\AndroidManifest.xml:40:23-47
+59            </intent-filter>
+60        </activity>
+61
+62        <provider
+62-->[androidx.emoji2:emoji2:1.3.0] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ebd423f1d880bd449ad65cf82e576d03\transformed\emoji2-1.3.0\AndroidManifest.xml:24:9-32:20
+63            android:name="androidx.startup.InitializationProvider"
+63-->[androidx.emoji2:emoji2:1.3.0] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ebd423f1d880bd449ad65cf82e576d03\transformed\emoji2-1.3.0\AndroidManifest.xml:25:13-67
+64            android:authorities="com.bastion.bridge.androidx-startup"
+64-->[androidx.emoji2:emoji2:1.3.0] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ebd423f1d880bd449ad65cf82e576d03\transformed\emoji2-1.3.0\AndroidManifest.xml:26:13-68
+65            android:exported="false" >
+65-->[androidx.emoji2:emoji2:1.3.0] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ebd423f1d880bd449ad65cf82e576d03\transformed\emoji2-1.3.0\AndroidManifest.xml:27:13-37
+66            <meta-data
+66-->[androidx.emoji2:emoji2:1.3.0] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ebd423f1d880bd449ad65cf82e576d03\transformed\emoji2-1.3.0\AndroidManifest.xml:29:13-31:52
+67                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+67-->[androidx.emoji2:emoji2:1.3.0] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ebd423f1d880bd449ad65cf82e576d03\transformed\emoji2-1.3.0\AndroidManifest.xml:30:17-75
+68                android:value="androidx.startup" />
+68-->[androidx.emoji2:emoji2:1.3.0] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ebd423f1d880bd449ad65cf82e576d03\transformed\emoji2-1.3.0\AndroidManifest.xml:31:17-49
+69            <meta-data
+69-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\a46dcffeb17d4b664be99c9350810fcb\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:29:13-31:52
+70                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+70-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\a46dcffeb17d4b664be99c9350810fcb\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:30:17-78
+71                android:value="androidx.startup" />
+71-->[androidx.lifecycle:lifecycle-process:2.6.2] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\a46dcffeb17d4b664be99c9350810fcb\transformed\lifecycle-process-2.6.2\AndroidManifest.xml:31:17-49
+72            <meta-data
+72-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:29:13-31:52
+73                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+73-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:30:17-85
+74                android:value="androidx.startup" />
+74-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:31:17-49
+75        </provider>
+76
+77        <receiver
+77-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:34:9-52:20
+78            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+78-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:35:13-76
+79            android:directBootAware="false"
+79-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:36:13-44
+80            android:enabled="true"
+80-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:37:13-35
+81            android:exported="true"
+81-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:38:13-36
+82            android:permission="android.permission.DUMP" >
+82-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:39:13-57
+83            <intent-filter>
+83-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:40:13-42:29
+84                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+84-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:17-91
+84-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:25-88
+85            </intent-filter>
+86            <intent-filter>
+86-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:43:13-45:29
+87                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+87-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:17-85
+87-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:25-82
+88            </intent-filter>
+89            <intent-filter>
+89-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:46:13-48:29
+90                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+90-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:17-88
+90-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:25-85
+91            </intent-filter>
+92            <intent-filter>
+92-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:49:13-51:29
+93                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+93-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:17-95
+93-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Brz\.gradle\caches\9.0-milestone-1\transforms\ca41c0be720d42967e8a8d14edc0d9b2\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:25-92
+94            </intent-filter>
+95        </receiver>
+96    </application>
+97
+98</manifest>

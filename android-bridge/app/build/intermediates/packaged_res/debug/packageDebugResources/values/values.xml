@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="http://schemas.android.com/tools">
+    <color name="black">#000000</color>
+    <color name="white">#FFFFFF</color>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_confirm">Confirm</string>
+    <string name="app_name">Bastion Bridge</string>
+    <string name="label_command">Command</string>
+    <string name="status_missing_link">Invalid bastion link.</string>
+    <string name="status_need_permission">Grant the additional permission to run commands in Termux, then confirm again.</string>
+    <string name="status_need_termux">Termux not found. Install the GitHub or F-Droid build first.</string>
+    <string name="status_ready">Confirm to copy the command and hand off to Termux.</string>
+    <string name="status_sent">Command copied. Termux launch requested.</string>
+    <string name="title_confirm">Open in Termux?</string>
+    <style name="Theme.BastionBridge" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">?attr/colorSurface</item>
+        <item name="android:navigationBarColor">?attr/colorSurface</item>
+        <item name="android:windowLightStatusBar" ns1:targetApi="23">?attr/isLightTheme</item>
+    </style>
+</resources>

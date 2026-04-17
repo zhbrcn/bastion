@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Bastion Bridge</string>
+    <string name="title_confirm">Open in Termux?</string>
+    <string name="label_command">Command</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_confirm">Confirm</string>
+    <string name="status_ready">Confirm to copy the command and hand off to Termux.</string>
+    <string name="status_need_termux">Termux not found. Install the GitHub or F-Droid build first.</string>
+    <string name="status_need_permission">Grant the additional permission to run commands in Termux, then confirm again.</string>
+    <string name="status_missing_link">Invalid bastion link.</string>
+    <string name="status_sent">Command copied. Termux launch requested.</string>
+</resources>
