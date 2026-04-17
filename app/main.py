@@ -52,6 +52,118 @@ _PROBE_CACHE: dict[tuple[str, int], tuple[float, bool]] = {}
 _PROBE_CACHE_LOCK = threading.Lock()
 _WINDOWS_INVALID_FILENAME = re.compile(r'[\\/:*?"<>|]+')
 
+LAUNCHER_INSTALL_BAT = r"""@echo off
+setlocal
+
+set "INSTALL_DIR=%LOCALAPPDATA%\bastion"
+set "LAUNCHER=%INSTALL_DIR%\bastion-launcher.bat"
+
+echo Installing Bastion launcher to %INSTALL_DIR%...
+
+if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
+copy /Y "%~dp0bastion-launcher.bat" "%LAUNCHER%" >nul
+
+echo Registering bastion:// protocol...
+
+reg add "HKCU\Software\Classes\bastion" /ve /d "URL:Bastion Protocol" /f >nul
+reg add "HKCU\Software\Classes\bastion" /v "URL Protocol" /d "" /f >nul
+reg add "HKCU\Software\Classes\bastion\shell\open\command" /ve /d "\"%LAUNCHER%\" \"%%1\"" /f >nul
+
+echo.
+echo [OK] Installation complete.
+echo You can now click "打开终端" buttons on the Bastion panel.
+echo.
+pause
+"""
+
+LAUNCHER_EXECUTOR_BAT = r"""@echo off
+setlocal EnableDelayedExpansion
+
+REM 接收协议 URL: bastion://connect?host=xxx&user=xxx&session=xxx&mode=xxx&jumpbox=xxx&via=xxx
+set "URL=%~1"
+
+REM 剥离协议前缀
+set "URL=!URL:bastion://connect?=!"
+set "URL=!URL:bastion://=!"
+
+REM 解析查询参数
+set "HOST="
+set "USER=root"
+set "SESSION="
+set "MODE=resume"
+set "JUMPBOX="
+set "VIA=tailscale"
+set "PORT=22"
+
+for %%P in ("!URL:&=" "!") do (
+  set "PAIR=%%~P"
+  for /f "tokens=1,2 delims==" %%A in ("!PAIR!") do (
+    if /i "%%A"=="host" set "HOST=%%B"
+    if /i "%%A"=="user" set "USER=%%B"
+    if /i "%%A"=="session" set "SESSION=%%B"
+    if /i "%%A"=="mode" set "MODE=%%B"
+    if /i "%%A"=="jumpbox" set "JUMPBOX=%%B"
+    if /i "%%A"=="via" set "VIA=%%B"
+    if /i "%%A"=="port" set "PORT=%%B"
+  )
+)
+
+REM 构造 tmux 子命令
+if "!MODE!"=="direct" (
+  set "TMUX_CMD="
+) else if "!MODE!"=="new" (
+  set "TMUX_CMD=tmux new-session -s !SESSION!"
+) else (
+  set "TMUX_CMD=tmux new-session -A -s !SESSION!"
+)
+
+REM 构造完整 SSH 命令
+if "!VIA!"=="tailscale" (
+  if "!MODE!"=="direct" (
+    set "SSH_CMD=ssh -t !JUMPBOX! "bastion-ssh !HOST! !USER!""
+  ) else (
+    set "SSH_CMD=ssh -t !JUMPBOX! "!TMUX_CMD! bastion-ssh !HOST! !USER!""
+  )
+) else (
+  if "!MODE!"=="direct" (
+    set "SSH_CMD=ssh -t -p !PORT! !USER!@!HOST!"
+  ) else (
+    set "SSH_CMD=ssh -t -p !PORT! !USER!@!HOST! "!TMUX_CMD!""
+  )
+)
+
+REM 优先使用 Windows Terminal
+where wt.exe >nul 2>nul
+if %ERRORLEVEL%==0 (
+  start "" wt.exe new-tab --title "!HOST!" cmd /k "!SSH_CMD!"
+) else (
+  start "" cmd /k "!SSH_CMD!"
+)
+
+endlocal
+"""
+
+LAUNCHER_README = r"""Bastion Windows 启动器
+这个工具让你在浏览器中点击按钮直接打开 Windows Terminal 连接服务器。
+安装步骤：
+
+解压所有文件到任意目录（不要删除 bastion-launcher.bat）
+双击 bastion-install.bat 运行（无需管理员权限）
+完成后回到 Bastion 面板，点击"打开终端"按钮即可
+
+首次点击时，浏览器会询问"是否允许此网站打开 Bastion 协议？"，
+选择"允许"并勾选"始终允许"即可。
+前置要求：
+
+Windows 10/11
+已内置 OpenSSH 客户端（Windows 10+ 默认开启）
+推荐安装 Windows Terminal（从 Microsoft Store 免费获取）
+
+卸载：
+在注册表中删除 HKCU\Software\Classes\bastion 项
+并删除 %LOCALAPPDATA%\bastion 目录
+"""
+
 
 def _resolve_bind_address(settings: dict[str, Any]) -> str:
     """Resolve the address exposed in the UI."""
@@ -640,6 +752,25 @@ def api_batch_download() -> Response:
         headers={
             "Content-Type": "application/zip",
             "Content-Disposition": "attachment; filename=bastion-shortcuts.zip",
+        },
+    )
+
+
+@app.route("/api/launcher-setup")
+def api_launcher_setup() -> Response:
+    """Download Windows protocol handler setup package."""
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("bastion-install.bat", LAUNCHER_INSTALL_BAT)
+        zf.writestr("bastion-launcher.bat", LAUNCHER_EXECUTOR_BAT)
+        zf.writestr("README.txt", LAUNCHER_README)
+    archive.seek(0)
+    return Response(
+        archive.getvalue(),
+        mimetype="application/zip",
+        headers={
+            "Content-Type": "application/zip",
+            "Content-Disposition": "attachment; filename=bastion-win-launcher.zip",
         },
     )
 

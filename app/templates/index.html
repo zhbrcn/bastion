@@ -90,7 +90,7 @@
       padding: 8px 14px;
     }
 
-    .button:hover, .input:focus, .select:focus, .textarea:focus, .command:hover {
+    .button:hover, .input:focus, .select:focus, .textarea:focus, .command:hover, .meta-select:hover, .meta-select:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.14);
       outline: none;
@@ -282,6 +282,18 @@
       outline: none;
     }
 
+    .meta-select {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--primary);
+      font: inherit;
+      font-size: 13px;
+      padding: 2px 6px;
+      cursor: pointer;
+      min-height: 24px;
+    }
+
     .card-footer {
       display: flex;
       gap: 8px;
@@ -397,6 +409,10 @@
       color: var(--muted);
     }
 
+    .launcher-btn {
+      display: inline-flex;
+    }
+
     .webssh-btn {
       display: inline-flex;
     }
@@ -412,7 +428,8 @@
     }
 
     @media (max-width: 767px) {
-      .webssh-btn { display: none; }
+      .launcher-btn { display: none !important; }
+      .webssh-btn { display: none !important; }
     }
   </style>
 </head>
@@ -479,11 +496,16 @@
       <section class="section">
         <div style="font-weight: 600;">Windows 一键连接</div>
         <div class="hint">
-          下载包含所有服务器的 .bat 文件包。解压后双击即可从 Windows Terminal
-          启动连接并自动进入 tmux 会话。需本机已安装 Windows Terminal 或 OpenSSH 客户端。
+          推荐：下载“浏览器启动器”后双击 install.bat 一次性安装，即可在面板
+          直接点击“打开终端”按钮启动 Windows Terminal。
         </div>
         <div class="settings-actions">
-          <a class="button primary" href="/api/batch-download" download>下载 .bat 文件包</a>
+          <a class="button primary" href="/api/launcher-setup" download>
+            下载浏览器启动器（推荐）
+          </a>
+          <a class="button" href="/api/batch-download" download>
+            下载独立 .bat 文件包
+          </a>
         </div>
       </section>
 
@@ -658,12 +680,6 @@
         return server.network === "public" ? "公网" : "内网";
       }
 
-      function getModeLabel(mode) {
-        if (mode === "new") return "新建会话";
-        if (mode === "direct") return "直接连接";
-        return "恢复会话";
-      }
-
       function getCardEdit(serverId) {
         const server = state.data?.servers.find((item) => item.id === serverId);
         if (!server) return { user: "", mode: "resume", session: "" };
@@ -810,7 +826,6 @@
           const offlineClass = server.online === false ? "offline" : "";
           const sourceLabel = getSourceLabel(server);
           const edit = getCardEdit(server.id);
-          const modeLabel = getModeLabel(edit.mode);
           const showSession = shouldShowSession(edit.mode);
           const address = server.source === "tailscale"
             ? `${escapeHtml(server.ip)} · ${escapeHtml(server.dns_name || server.hostname)}`
@@ -832,7 +847,11 @@
                 <span class="sep">·</span>
                 <span class="editable" data-edit-type="user" data-server-id="${escapeHtml(server.id)}">${escapeHtml(edit.user)}</span>
                 <span class="sep">·</span>
-                <span class="editable" data-edit-type="mode" data-server-id="${escapeHtml(server.id)}">${escapeHtml(modeLabel)}</span>
+                <select class="meta-select" data-server-id="${escapeHtml(server.id)}">
+                  <option value="resume" ${edit.mode === "resume" ? "selected" : ""}>恢复会话</option>
+                  <option value="new" ${edit.mode === "new" ? "selected" : ""}>新建会话</option>
+                  <option value="direct" ${edit.mode === "direct" ? "selected" : ""}>直接连接</option>
+                </select>
                 <span class="sep mode-extra" style="display:${showSession ? "inline" : "none"}">·</span>
                 <span class="editable mode-extra" data-edit-type="session" data-server-id="${escapeHtml(server.id)}" style="display:${showSession ? "inline" : "none"}">${escapeHtml(edit.session)}</span>
               </div>
@@ -840,11 +859,21 @@
               <div class="card-footer">
                 <div class="command" data-command="${escapeHtml(server.id)}">${escapeHtml(getCommandForServer(server.id))}</div>
                 <button class="button" type="button" data-copy-button="${escapeHtml(server.id)}">复制</button>
+                <button class="button launcher-btn" type="button" data-launcher="${escapeHtml(server.id)}">打开终端</button>
                 <button class="button primary webssh-btn" type="button" data-webssh="${escapeHtml(server.id)}">WebSSH</button>
               </div>
             </article>
           `;
         }).join("");
+
+        el.serverGrid.querySelectorAll(".meta-select").forEach((select) => {
+          select.addEventListener("change", () => {
+            const serverId = select.dataset.serverId;
+            saveCardEdit(serverId, "mode", select.value);
+            updateCardCommand(serverId);
+            updateModeExtraVisibility(serverId);
+          });
+        });
 
         el.serverGrid.querySelectorAll("[data-copy-button]").forEach((button) => {
           button.addEventListener("click", async () => {
@@ -858,6 +887,27 @@
         el.serverGrid.querySelectorAll("[data-command]").forEach((commandEl) => {
           commandEl.addEventListener("click", async () => {
             await copyCommand(commandEl);
+          });
+        });
+
+        el.serverGrid.querySelectorAll("[data-launcher]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const serverId = button.getAttribute("data-launcher");
+            const server = state.data.servers.find((s) => s.id === serverId);
+            if (!server) return;
+            const edit = getCardEdit(serverId);
+            const params = new URLSearchParams({
+              host: server.source === "tailscale" ? server.hostname : server.host,
+              user: edit.user,
+              session: edit.session || server.hostname,
+              mode: edit.mode || "resume",
+              via: server.source,
+              jumpbox: server.source === "tailscale"
+                ? `${state.data.jumpbox_user}@${state.data.jumpbox_host}`
+                : "",
+              port: server.port || 22,
+            });
+            window.location.href = `bastion://connect?${params.toString()}`;
           });
         });
 
@@ -1119,22 +1169,9 @@
           const serverId = target.dataset.serverId;
           const currentValue = target.textContent.trim();
 
-          let input;
-          if (type === "mode") {
-            input = document.createElement("select");
-            [["resume", "恢复会话"], ["new", "新建会话"], ["direct", "直接连接"]].forEach(([value, label]) => {
-              const option = document.createElement("option");
-              option.value = value;
-              option.textContent = label;
-              if (label === currentValue) option.selected = true;
-              input.appendChild(option);
-            });
-          } else {
-            input = document.createElement("input");
-            input.type = "text";
-            input.value = currentValue;
-          }
-
+          const input = document.createElement("input");
+          input.type = "text";
+          input.value = currentValue;
           input.className = "editable-input";
           target.classList.add("editing");
           target.replaceWith(input);
@@ -1143,14 +1180,12 @@
           const finish = () => {
             const newValue = input.value.trim();
             const span = document.createElement("span");
-            span.className = "editable";
+            span.className = target.className.replace(" editing", "");
             span.dataset.editType = type;
             span.dataset.serverId = serverId;
-            span.textContent = type === "mode"
-              ? input.options[input.selectedIndex].text
-              : (newValue || currentValue);
+            span.textContent = newValue || currentValue;
             input.replaceWith(span);
-            saveCardEdit(serverId, type, type === "mode" ? input.value : newValue);
+            saveCardEdit(serverId, type, newValue);
             updateCardCommand(serverId);
             updateModeExtraVisibility(serverId);
           };
