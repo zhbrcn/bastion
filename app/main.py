@@ -10,10 +10,15 @@ import select
 import shlex
 import signal
 import socket
+import struct
 import subprocess
 import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+import fcntl
+import termios
 from flask import Flask, Response, jsonify, render_template, request
 from flask_sock import Sock
 
@@ -27,7 +32,6 @@ from config_loader import (
     save_settings,
 )
 from tailscale import get_nodes, get_self_hostname, get_self_ip
-from terminal_manager import TerminalManager
 from tmux_manager import list_sessions
 
 logging.basicConfig(
@@ -35,9 +39,14 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 sock = Sock(app)
-terminals = TerminalManager()
+
+_PROBE_CACHE_SECONDS = 30.0
+_PROBE_CACHE: dict[tuple[str, int], tuple[float, bool]] = {}
+_PROBE_CACHE_LOCK = threading.Lock()
 
 
 def _resolve_bind_address(settings: dict[str, Any]) -> str:
@@ -56,13 +65,27 @@ def _resolve_jumpbox_host(settings: dict[str, Any]) -> str:
     return str(host)
 
 
-def _probe_host(host: str, port: int) -> bool | None:
-    """Best-effort TCP reachability probe."""
+def _probe_host(host: str, port: int) -> bool:
+    """Best-effort TCP reachability probe with a short in-memory cache."""
+    cache_key = (host, port)
+    now = time.time()
+
+    with _PROBE_CACHE_LOCK:
+        cached = _PROBE_CACHE.get(cache_key)
+        if cached and now - cached[0] < _PROBE_CACHE_SECONDS:
+            return cached[1]
+
+    online = False
     try:
         with socket.create_connection((host, port), timeout=1.5):
-            return True
+            online = True
     except OSError:
-        return False
+        online = False
+
+    with _PROBE_CACHE_LOCK:
+        _PROBE_CACHE[cache_key] = (now, online)
+
+    return online
 
 
 def _build_jumpbox_command(
@@ -142,9 +165,12 @@ def _build_terminal_command(
     session_mode: str = "resume",
     session_name: str = "",
 ) -> str:
-    """Build a server-side command for the web terminal session."""
+    """Build a server-side command for the websocket terminal session."""
     if server["source"] == "tailscale":
-        effective_session = session_name or f"{settings.get('defaults', {}).get('tmux_prefix', '')}{server['hostname']}"
+        effective_session = (
+            session_name
+            or f"{settings.get('defaults', {}).get('tmux_prefix', '')}{server['hostname']}"
+        )
         if session_mode == "direct":
             return f"bastion-ssh {shlex.quote(server['hostname'])} {shlex.quote(server['user'])}"
         if session_mode == "new":
@@ -161,13 +187,19 @@ def _build_terminal_command(
 
     effective_session = session_name or server.get("session_name") or server["hostname"]
     port = int(server.get("port", 22))
+    base_command = f"ssh -tt -p {port} {shlex.quote(server['user'])}@{shlex.quote(server['host'])}"
     if session_mode == "direct":
-        return f"ssh -tt -p {port} {shlex.quote(server['user'])}@{shlex.quote(server['host'])}"
+        return base_command
+
     tmux_command = "tmux new-session -A -s " if session_mode != "new" else "tmux new-session -s "
-    return (
-        f"ssh -tt -p {port} {shlex.quote(server['user'])}@{shlex.quote(server['host'])} "
-        f"{shlex.quote(tmux_command + shlex.quote(effective_session))}"
-    )
+    remote_command = tmux_command + shlex.quote(effective_session)
+    return f"{base_command} {shlex.quote(remote_command)}"
+
+
+def _manual_probe_result(server: dict[str, Any]) -> tuple[str, bool]:
+    """Return online status for one manual server."""
+    raw_id = str(server.get("raw_id") or server.get("hostname") or "")
+    return raw_id, _probe_host(server["host"], int(server.get("port", 22)))
 
 
 def _collect_servers() -> dict[str, Any]:
@@ -177,7 +209,13 @@ def _collect_servers() -> dict[str, Any]:
     manual_servers = load_manual_servers()
     sessions = {session["name"] for session in list_sessions()}
     auth_urls = get_pending_auth_urls()
-    terminals.cleanup()
+
+    manual_online: dict[str, bool] = {}
+    visible_manuals = [server for server in manual_servers if not server["hidden"]]
+    if visible_manuals:
+        with ThreadPoolExecutor(max_workers=min(16, len(visible_manuals))) as executor:
+            for raw_id, online in executor.map(_manual_probe_result, visible_manuals):
+                manual_online[raw_id] = online
 
     servers: list[dict[str, Any]] = []
     all_tags: set[str] = set()
@@ -190,6 +228,7 @@ def _collect_servers() -> dict[str, Any]:
         info["tmux_session_exists"] = session_name in sessions
         info["pending_auth_url"] = auth_urls.get(info["hostname"])
         info["command"] = _build_server_command(info, settings)
+        info["session_name"] = session_name
         servers.append(info)
         all_tags.update(info["tags"])
 
@@ -199,7 +238,7 @@ def _collect_servers() -> dict[str, Any]:
         session_name = server.get("session_name") or server["hostname"]
         server["tmux_session_exists"] = session_name in sessions
         server["pending_auth_url"] = None
-        server["online"] = _probe_host(server["host"], int(server.get("port", 22)))
+        server["online"] = manual_online.get(server["raw_id"], False)
         server["command"] = _build_server_command(server, settings)
         servers.append(server)
         all_tags.update(server["tags"])
@@ -216,8 +255,8 @@ def _collect_servers() -> dict[str, Any]:
         "title": settings.get("ui", {}).get("title", "Bastion"),
         "subtitle": settings.get("ui", {}).get("subtitle", "跳板机管理面板"),
         "bind_address": _resolve_bind_address(settings),
-        "port": settings.get("web", {}).get("port", 1234),
-        "refresh_interval": settings.get("ui", {}).get("refresh_interval", 10),
+        "port": int(settings.get("web", {}).get("port", 1234)),
+        "refresh_interval": int(settings.get("ui", {}).get("refresh_interval", 10)),
         "jumpbox_host": _resolve_jumpbox_host(settings),
         "jumpbox_user": settings.get("jumpbox", {}).get("ssh_user", "root"),
         "tmux_prefix": settings.get("defaults", {}).get("tmux_prefix", ""),
@@ -238,7 +277,6 @@ def _find_server(server_id: str) -> tuple[dict[str, Any] | None, dict[str, Any]]
     overrides = load_overrides()
 
     if server_id.startswith("ts:"):
-        hostname = server_id.split(":", 1)[1]
         for node in get_nodes():
             info = merge_node_info(node, overrides, settings)
             if info["id"] == server_id:
@@ -259,7 +297,18 @@ def _json_payload() -> dict[str, Any]:
     return _collect_servers()
 
 
-def _stream_terminal_output(ws: Any, master_fd: int, process: Any) -> None:
+def _set_pty_size(master_fd: int, rows: int, cols: int) -> None:
+    """Apply PTY window size to the child process."""
+    if rows <= 0 or cols <= 0:
+        return
+    fcntl.ioctl(
+        master_fd,
+        termios.TIOCSWINSZ,
+        struct.pack("HHHH", rows, cols, 0, 0),
+    )
+
+
+def _stream_terminal_output(ws: Any, master_fd: int, process: subprocess.Popen[str]) -> None:
     """Read from a PTY and forward raw bytes to the websocket."""
     try:
         while process.poll() is None:
@@ -285,13 +334,17 @@ def ws_terminal(ws: Any, server_id: str) -> None:
     init_message = ws.receive()
     session_mode = "resume"
     session_name = ""
+    initial_rows = 24
+    initial_cols = 120
     if isinstance(init_message, str):
         try:
             payload = json.loads(init_message)
             if payload.get("type") == "init":
                 session_mode = str(payload.get("session_mode") or "resume")
                 session_name = str(payload.get("session_name") or "").strip()
-        except Exception:
+                initial_rows = max(1, int(payload.get("rows") or initial_rows))
+                initial_cols = max(1, int(payload.get("cols") or initial_cols))
+        except (TypeError, ValueError, json.JSONDecodeError):
             pass
 
     master_fd, slave_fd = pty.openpty()
@@ -299,9 +352,12 @@ def ws_terminal(ws: Any, server_id: str) -> None:
     env.setdefault("TERM", "xterm-256color")
     env.setdefault("COLORTERM", "truecolor")
 
-    process = None
+    process: subprocess.Popen[str] | None = None
     try:
-        process = subprocess.Popen(  # type: ignore[name-defined]
+        _set_pty_size(master_fd, initial_rows, initial_cols)
+        _set_pty_size(slave_fd, initial_rows, initial_cols)
+
+        process = subprocess.Popen(
             [
                 "/bin/bash",
                 "-lc",
@@ -332,10 +388,26 @@ def ws_terminal(ws: Any, server_id: str) -> None:
             message = ws.receive()
             if message is None:
                 break
-            if isinstance(message, str):
-                if message.startswith("{") and '"type"' in message:
+
+            if isinstance(message, bytes):
+                os.write(master_fd, message)
+                continue
+
+            if not isinstance(message, str):
+                continue
+
+            if message.startswith("{"):
+                try:
+                    payload = json.loads(message)
+                except json.JSONDecodeError:
+                    payload = None
+                if isinstance(payload, dict) and payload.get("type") == "resize":
+                    rows = max(1, int(payload.get("rows") or 24))
+                    cols = max(1, int(payload.get("cols") or 80))
+                    _set_pty_size(master_fd, rows, cols)
                     continue
-                os.write(master_fd, message.encode("utf-8"))
+
+            os.write(master_fd, message.encode("utf-8"))
     finally:
         try:
             os.close(master_fd)
@@ -360,7 +432,7 @@ def index() -> str:
         "index.html",
         title=settings.get("ui", {}).get("title", "Bastion"),
         subtitle=settings.get("ui", {}).get("subtitle", "跳板机管理面板"),
-        refresh_interval=settings.get("ui", {}).get("refresh_interval", 10),
+        refresh_interval=int(settings.get("ui", {}).get("refresh_interval", 10)),
     )
 
 
@@ -405,6 +477,7 @@ def api_manual_servers() -> Response:
         return jsonify({"ok": False, "error": "display_name and host are required"}), 400
 
     raw_id = str(payload.get("raw_id") or payload.get("hostname") or display_name).strip()
+    session_name = str(payload.get("session_name") or raw_id.lower().replace(" ", "-")).strip()
     server = {
         "raw_id": raw_id.lower().replace(" ", "-"),
         "display_name": display_name,
@@ -419,7 +492,7 @@ def api_manual_servers() -> Response:
         "os": str(payload.get("os") or "unknown"),
         "hidden": bool(payload.get("hidden", False)),
         "connect_mode": "direct",
-        "session_name": str(payload.get("session_name") or raw_id.lower().replace(" ", "-")),
+        "session_name": session_name,
     }
     servers = [item for item in servers if item["raw_id"] != server["raw_id"]]
     servers.append(server)
@@ -461,7 +534,7 @@ def api_manual_server(server_id: str) -> Response:
                 "hidden": bool(payload.get("hidden", server["hidden"])),
                 "session_name": str(
                     payload.get("session_name") or server.get("session_name") or server["raw_id"]
-                ),
+                ).strip(),
             }
         )
         updated.append(server)
@@ -501,66 +574,6 @@ def api_ssh_config() -> Response:
         mimetype="text/plain",
         headers={"Content-Disposition": "attachment; filename=bastion-ssh-config"},
     )
-
-
-@app.route("/api/terminal", methods=["POST"])
-def api_terminal_create() -> Response:
-    """Create a new browser terminal session."""
-    payload = request.get_json(silent=True) or {}
-    server_id = str(payload.get("server_id") or "")
-    session_mode = str(payload.get("session_mode") or "resume")
-    session_name = str(payload.get("session_name") or "").strip()
-    server, settings = _find_server(server_id)
-    if server is None:
-        return jsonify({"ok": False, "error": "server not found"}), 404
-
-    command = _build_terminal_command(
-        server,
-        settings,
-        session_mode=session_mode,
-        session_name=session_name,
-    )
-    session = terminals.create(command)
-    initial_output = terminals.read(session.session_id)
-    return jsonify(
-        {
-            "ok": True,
-            "session_id": session.session_id,
-            "command": command,
-            "output": initial_output,
-        }
-    )
-
-
-@app.route("/api/terminal/<session_id>", methods=["GET", "DELETE"])
-def api_terminal_session(session_id: str) -> Response:
-    """Poll or close an existing terminal session."""
-    if request.method == "DELETE":
-        terminals.close(session_id)
-        return jsonify({"ok": True})
-
-    session = terminals.get(session_id)
-    if session is None:
-        return jsonify({"ok": False, "error": "session not found"}), 404
-
-    output = terminals.read(session_id)
-    return jsonify(
-        {
-            "ok": True,
-            "output": output,
-            "closed": session.closed or session.process.poll() is not None,
-        }
-    )
-
-
-@app.route("/api/terminal/<session_id>/input", methods=["POST"])
-def api_terminal_input(session_id: str) -> Response:
-    """Send input to a terminal session."""
-    payload = request.get_json(silent=True) or {}
-    data = str(payload.get("data") or "")
-    if not terminals.write(session_id, data):
-        return jsonify({"ok": False, "error": "session not writable"}), 404
-    return jsonify({"ok": True})
 
 
 @app.route("/api/clear-auth", methods=["POST"])

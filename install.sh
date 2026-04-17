@@ -140,8 +140,36 @@ detect_primary_lan_ip() {
     '
 }
 
+read_web_port() {
+    local settings_path="${CONFIG_DIR}/settings.yaml"
+    if [[ ! -f "${settings_path}" ]]; then
+        printf '1234'
+        return
+    fi
+
+    awk '
+        BEGIN { in_web = 0; port = "" }
+        /^[[:space:]]*web:[[:space:]]*$/ { in_web = 1; next }
+        in_web && /^[^[:space:]]/ { in_web = 0 }
+        in_web && /^[[:space:]]*port:[[:space:]]*[0-9]+[[:space:]]*$/ {
+            line = $0
+            sub(/^[[:space:]]*port:[[:space:]]*/, "", line)
+            sub(/[[:space:]]*$/, "", line)
+            port = line
+            print port
+            exit
+        }
+        END {
+            if (port == "") {
+                print "1234"
+            }
+        }
+    ' "${settings_path}" | head -n1
+}
+
 build_listen_lines() {
-    local tailscale_ip lan_ip line
+    local port="$1"
+    local tailscale_ip lan_ip line=""
     local -a addresses=()
 
     tailscale_ip="$(detect_tailscale_ip)"
@@ -159,17 +187,18 @@ build_listen_lines() {
     fi
 
     for address in "${addresses[@]}"; do
-        line+="    listen ${address}:1234;"$'\n'
+        line+="    listen ${address}:${port};"$'\n'
     done
 
     printf '%s' "${line}"
 }
 
 install_nginx() {
-    local listen_lines
-    listen_lines="$(build_listen_lines)"
+    local port listen_lines
+    port="$(read_web_port)"
+    listen_lines="$(build_listen_lines "${port}")"
 
-    log_info "写入 Nginx 配置"
+    log_info "写入 Nginx 配置，监听端口 ${port}"
     cat > "${NGINX_AVAILABLE}" <<EOF
 server {
 ${listen_lines}    server_name _;
@@ -202,16 +231,17 @@ EOF
 }
 
 show_summary() {
-    local tailscale_ip lan_ip
+    local port tailscale_ip lan_ip
+    port="$(read_web_port)"
     tailscale_ip="$(detect_tailscale_ip)"
     lan_ip="$(detect_primary_lan_ip)"
 
     printf "\n${BLUE}Bastion 安装完成${NC}\n"
     printf "安装目录: %s\n" "${INSTALL_DIR}"
     printf "配置目录: %s\n" "${CONFIG_DIR}"
-    printf "Tailscale 访问地址: http://%s:1234\n" "${tailscale_ip}"
+    printf "Tailscale 访问地址: http://%s:%s\n" "${tailscale_ip}" "${port}"
     if [[ -n "${lan_ip}" && "${lan_ip}" != "${tailscale_ip}" && "${lan_ip}" != "127.0.0.1" ]]; then
-        printf "局域网访问地址: http://%s:1234\n" "${lan_ip}"
+        printf "局域网访问地址: http://%s:%s\n" "${lan_ip}" "${port}"
     fi
     printf "服务状态: systemctl status %s\n" "${SERVICE_NAME}"
     printf "查看日志: journalctl -u %s -f\n" "${SERVICE_NAME}"

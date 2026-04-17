@@ -1,6 +1,6 @@
 #!/bin/bash
-# bastion-ssh: 封装 tailscale ssh，捕获 Tailscale 认证 URL
-# 用法: bastion-ssh <hostname> <user>
+# bastion-ssh: wrap tailscale ssh and capture Tailscale auth URLs
+# Usage: bastion-ssh <hostname> <user>
 
 set -uo pipefail
 
@@ -31,7 +31,13 @@ trap cleanup EXIT INT TERM
 SCRIPT_LOG="$(mktemp /tmp/bastion-ssh-log.XXXXXX)"
 
 (
+    start_time="$(date +%s)"
     while true; do
+        now="$(date +%s)"
+        if (( now - start_time >= 120 )); then
+            exit 0
+        fi
+
         if [[ -s "${SCRIPT_LOG}" ]]; then
             URL="$(grep -oE 'https://login\.tailscale\.com/a/[A-Za-z0-9]+' "${SCRIPT_LOG}" 2>/dev/null | head -n1 || true)"
             if [[ -n "${URL}" ]]; then

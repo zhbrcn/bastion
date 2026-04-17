@@ -2,98 +2,393 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>{{ title }}</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
   <style>
     :root {
       color-scheme: dark light;
-      --bg: #0d1117; --panel: #161b22; --panel-2: #11161d; --border: #21262d;
-      --text: #e6edf3; --muted: #8b949e; --primary: #58a6ff; --success: #3fb950;
-      --warning: #d29922; --danger: #f85149; --soft: rgba(88,166,255,.12);
-      --radius: 6px; --font-ui: -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
-      --font-code: "SF Mono",Monaco,"Cascadia Code","JetBrains Mono",Consolas,monospace;
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel-2: #11161d;
+      --panel-3: #0b0f14;
+      --border: #21262d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --primary: #58a6ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+      --shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+      --radius: 14px;
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+        "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, sans-serif;
+      --font-code: "SF Mono", "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, monospace;
     }
+
     @media (prefers-color-scheme: light) {
       :root {
-        --bg: #ffffff; --panel: #f6f8fa; --panel-2: #ffffff; --border: #d0d7de;
-        --text: #1f2328; --muted: #656d76; --primary: #0969da; --success: #1a7f37;
-        --warning: #9a6700; --danger: #cf222e; --soft: rgba(9,105,218,.08);
+        --bg: #f5f7fb;
+        --panel: #ffffff;
+        --panel-2: #f7f9fc;
+        --panel-3: #eef3f8;
+        --border: #d7dee8;
+        --text: #1f2328;
+        --muted: #66707b;
+        --primary: #0969da;
+        --success: #1a7f37;
+        --warning: #9a6700;
+        --danger: #cf222e;
+        --shadow: 0 18px 48px rgba(32, 55, 84, 0.12);
       }
     }
+
     * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-ui); }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: radial-gradient(circle at top, rgba(88, 166, 255, 0.08), transparent 36%), var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+    }
+
     body { line-height: 1.5; }
     button, input, select, textarea { font: inherit; }
     button { cursor: pointer; }
-    .page { max-width: 1480px; margin: 0 auto; padding: 24px; }
-    .topbar, .toolbar, .server-actions, .auth-item, .drawer-head, .terminal-head { display: flex; gap: 12px; }
-    .topbar, .toolbar, .drawer-head, .terminal-head { justify-content: space-between; align-items: center; flex-wrap: wrap; }
-    .summary { display: flex; gap: 24px; flex-wrap: wrap; margin: 16px 0; color: var(--muted); font-size: 14px; }
-    .subtitle, .muted, .hint { color: var(--muted); }
-    .subtitle { margin-top: 4px; font-size: 14px; }
-    .button, .input, .select, .textarea {
-      border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 4px;
+    a { color: inherit; }
+
+    .page {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 24px;
     }
-    .button { min-height: 36px; padding: 8px 12px; }
-    .button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
-    .button.danger { color: var(--danger); background: transparent; }
-    .button.success { background: var(--success); border-color: var(--success); color: #fff; }
-    .input, .select, .textarea { width: 100%; min-height: 36px; padding: 8px 10px; }
-    .textarea { min-height: 80px; resize: vertical; }
+
+    .topbar, .toolbar, .summary, .drawer-head, .terminal-head, .server-card-head, .server-card-meta,
+    .server-card-actions, .manual-item-head, .auth-item, .settings-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+
+    .topbar { margin-bottom: 16px; }
+    h1, h2, h3, p { margin: 0; }
+    .subtitle, .hint, .muted { color: var(--muted); }
+    .subtitle { margin-top: 6px; font-size: 14px; }
+
+    .button, .input, .select, .textarea, .command {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      color: var(--text);
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    }
+
+    .button {
+      min-height: 38px;
+      padding: 8px 14px;
+    }
+
+    .button:hover, .input:focus, .select:focus, .textarea:focus, .command:hover {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.14);
+      outline: none;
+    }
+
+    .button.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .button.danger { color: var(--danger); }
+
+    .input, .select, .textarea {
+      width: 100%;
+      min-height: 38px;
+      padding: 8px 12px;
+    }
+
+    .textarea {
+      min-height: 96px;
+      resize: vertical;
+    }
+
+    .summary {
+      margin-bottom: 16px;
+      padding: 16px 18px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .toolbar {
+      margin-bottom: 16px;
+      gap: 16px;
+    }
+
     .chips { display: flex; gap: 8px; flex-wrap: wrap; }
     .chip, .source-badge {
-      display: inline-flex; align-items: center; min-height: 28px; padding: 2px 10px;
-      border: 1px solid var(--border); border-radius: 999px; background: var(--panel); color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--panel-2);
+      color: var(--muted);
+      font-size: 12px;
     }
-    .chip.active { background: var(--soft); color: var(--primary); border-color: rgba(88,166,255,.35); }
-    .server-list, .auth-banner, .drawer, .terminal, .empty {
-      border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel);
+
+    .chip.active {
+      border-color: rgba(88, 166, 255, 0.4);
+      color: var(--primary);
+      background: rgba(88, 166, 255, 0.12);
     }
-    .auth-banner { display: none; padding: 16px; margin-bottom: 16px; }
+
+    .source-badge.tailscale { color: var(--primary); }
+    .source-badge.manual.public { color: var(--warning); }
+    .source-badge.manual.private { color: #a371f7; }
+
+    .auth-banner, .server-grid, .drawer, .terminal-panel, .empty {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .auth-banner {
+      display: none;
+      margin-bottom: 16px;
+      padding: 16px;
+    }
+
     .auth-banner.visible { display: block; }
-    .auth-list, .manual-list { display: grid; gap: 10px; }
-    .auth-item, .manual-item { padding: 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel-2); }
-    .server-head, .server-row {
-      display: grid; grid-template-columns: 1.4fr 1.1fr .8fr 1.2fr 2fr 1fr; gap: 12px; padding: 12px 16px; align-items: center;
+    .auth-list, .manual-list, .server-grid {
+      display: grid;
+      gap: 14px;
     }
-    .server-head { background: var(--panel-2); color: var(--muted); font-size: 13px; border-bottom: 1px solid var(--border); }
-    .server-row { border-bottom: 1px solid var(--border); }
-    .server-row:last-child { border-bottom: 0; }
-    .server-name { display: grid; gap: 4px; min-width: 0; }
-    .server-primary { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-    .server-title { font-weight: 600; word-break: break-word; }
-    .status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
-    .dot.online { color: var(--success); } .dot.offline { color: var(--muted); } .dot.pending { color: var(--warning); }
-    .source-badge.tailscale { color: var(--primary); } .source-badge.manual { color: var(--warning); }
+
+    .server-grid {
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      padding: 14px;
+    }
+
+    .server-card, .manual-item, .auth-item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel-2);
+    }
+
+    .server-card {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+    }
+
+    .server-title {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+
+    .server-title strong {
+      font-size: 16px;
+      word-break: break-word;
+    }
+
+    .server-card-meta {
+      align-items: flex-start;
+      gap: 10px 14px;
+    }
+
+    .server-address {
+      font-family: var(--font-code);
+      font-size: 12px;
+      word-break: break-word;
+    }
+
+    .server-note {
+      font-size: 13px;
+      color: var(--muted);
+      min-height: 20px;
+    }
+
+    .server-tags {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--muted);
+      display: inline-block;
+      flex: 0 0 auto;
+    }
+
+    .dot.online { background: var(--success); }
+    .dot.offline { background: var(--muted); }
+    .dot.pending { background: var(--warning); }
+
+    .status-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
     .command {
-      font-family: var(--font-code); font-size: 12px; white-space: nowrap; overflow-x: auto;
-      padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel-2);
+      padding: 12px;
+      background: var(--panel-3);
+      font-family: var(--font-code);
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      cursor: pointer;
     }
-    .empty { padding: 28px; text-align: center; color: var(--muted); margin-top: 16px; }
-    .overlay, .terminal-wrap {
-      position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; z-index: 40;
+
+    .command.copied {
+      border-color: var(--success);
+      box-shadow: 0 0 0 3px rgba(63, 185, 80, 0.18);
     }
-    .overlay.visible, .terminal-wrap.visible { display: flex; }
-    .overlay { align-items: stretch; justify-content: flex-end; }
+
+    .settings-toggle {
+      border: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--primary);
+    }
+
+    details.settings-box {
+      border-top: 1px dashed var(--border);
+      padding-top: 12px;
+    }
+
+    details.settings-box summary {
+      list-style: none;
+      cursor: pointer;
+      color: var(--primary);
+      user-select: none;
+    }
+
+    details.settings-box summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .terminal-wrap, .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.48);
+      display: none;
+      z-index: 40;
+    }
+
+    .terminal-wrap.visible, .overlay.visible { display: flex; }
+
+    .overlay {
+      justify-content: flex-end;
+      align-items: stretch;
+    }
+
     .drawer {
-      width: min(560px, 100vw); height: 100%; padding: 20px; overflow-y: auto;
-      border-radius: 0; border-right: 0; border-top: 0; border-bottom: 0;
+      width: min(560px, 100vw);
+      height: 100%;
+      padding: 20px;
+      overflow-y: auto;
+      border-radius: 0;
+      border-top: 0;
+      border-right: 0;
+      border-bottom: 0;
     }
-    .section { display: grid; gap: 12px; margin-bottom: 24px; }
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .terminal-wrap { align-items: center; justify-content: center; z-index: 50; }
-    .terminal { width: min(1100px, 96vw); height: min(780px, 92vh); padding: 16px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; }
+
+    .section {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .manual-item, .auth-item {
+      padding: 12px;
+    }
+
+    .manual-item-head {
+      margin-bottom: 8px;
+    }
+
+    .terminal-wrap {
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+
+    .terminal-panel {
+      width: min(1180px, 96vw);
+      height: min(820px, 94vh);
+      padding: 16px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 14px;
+    }
+
     .terminal-screen {
-      background: #0b0f14; color: #d7e3f4; border: 1px solid var(--border); border-radius: 4px; padding: 12px;
-      overflow: auto; font-family: var(--font-code); font-size: 13px; white-space: pre-wrap;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #0b0f14;
+      min-height: 460px;
     }
-    .terminal-screen { padding: 0; }
-    #terminal-mount { width: 100%; height: 100%; min-height: 420px; }
-    .terminal-input-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; }
+
+    #terminal-mount {
+      width: 100%;
+      height: 100%;
+      min-height: 460px;
+      padding: 8px;
+    }
+
+    .empty {
+      display: none;
+      margin-top: 16px;
+      padding: 28px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .webssh-button.mobile-hidden {
+      display: inline-flex;
+    }
+
     @media (max-width: 980px) {
-      .page { padding: 16px; } .server-head { display: none; } .server-row { grid-template-columns: 1fr; gap: 10px; }
-      .grid-2, .terminal-input-row { grid-template-columns: 1fr; }
+      .page { padding: 16px; }
+      .grid-2, .settings-grid { grid-template-columns: 1fr; }
+      .summary { gap: 10px; }
+      .terminal-panel { width: 100vw; height: 100vh; border-radius: 0; }
+    }
+
+    @media (max-width: 767px) {
+      .webssh-button.mobile-hidden { display: none !important; }
     }
   </style>
 </head>
@@ -104,8 +399,8 @@
         <h1 id="page-title">{{ title }}</h1>
         <div class="subtitle" id="page-subtitle">{{ subtitle }}</div>
       </div>
-      <div class="server-actions">
-        <a class="button" href="/api/ssh-config">下载 SSH config</a>
+      <div class="settings-actions">
+        <a class="button" href="/api/ssh-config">下载 SSH Config</a>
         <button class="button" id="refresh-button" type="button">刷新</button>
         <button class="button primary" id="settings-button" type="button">管理</button>
       </div>
@@ -120,7 +415,7 @@
     </section>
 
     <section class="auth-banner" id="auth-banner">
-      <div class="muted" style="margin-bottom: 12px;">以下节点需要 Tailscale 认证</div>
+      <div class="muted" style="margin-bottom: 12px;">以下节点需要先完成 Tailscale 认证。</div>
       <div class="auth-list" id="auth-list"></div>
     </section>
 
@@ -129,51 +424,81 @@
       <input class="input" id="search-input" type="search" placeholder="搜索名称、地址、备注，按 / 快速聚焦" style="width:min(360px,100vw);">
     </section>
 
-    <section class="server-list">
-      <div class="server-head">
-        <div>服务器</div><div>地址 / 来源</div><div>状态</div><div>用户 / 会话</div><div>连接命令</div><div>操作</div>
-      </div>
-      <div id="server-rows"></div>
-    </section>
-    <div class="empty" id="empty-state" style="display:none;"></div>
+    <section class="server-grid" id="server-grid"></section>
+    <div class="empty" id="empty-state"></div>
   </main>
 
   <div class="overlay" id="settings-overlay">
     <aside class="drawer">
       <div class="drawer-head">
-        <h2 style="margin:0;">管理面板</h2>
+        <h2>管理面板</h2>
         <button class="button" id="close-settings" type="button">关闭</button>
       </div>
 
       <section class="section">
-        <div style="font-weight:600;">连接设置</div>
-        <div class="hint">控制复制命令里跳板机使用的地址和用户。这里可以填 192.168.x.x，也可以继续用 auto。</div>
+        <div style="font-weight: 600;">连接设置</div>
+        <div class="hint">控制复制命令里的跳板机地址和用户。这里可以填局域网地址，也可以继续使用 auto。</div>
         <div class="grid-2">
-          <div><div class="hint">跳板机地址</div><input class="input" id="setting-jumpbox-host" type="text" placeholder="auto 或 192.168.2.112"></div>
-          <div><div class="hint">跳板机用户</div><input class="input" id="setting-jumpbox-user" type="text" placeholder="root"></div>
+          <div>
+            <div class="hint">跳板机地址</div>
+            <input class="input" id="setting-jumpbox-host" type="text" placeholder="auto 或 192.168.2.112">
+          </div>
+          <div>
+            <div class="hint">跳板机用户</div>
+            <input class="input" id="setting-jumpbox-user" type="text" placeholder="root">
+          </div>
         </div>
-        <div class="server-actions"><button class="button primary" id="save-settings" type="button">保存设置</button></div>
+        <div class="settings-actions">
+          <button class="button primary" id="save-settings" type="button">保存设置</button>
+        </div>
       </section>
 
       <section class="section">
-        <div style="font-weight:600;">手动服务器</div>
-        <div class="hint">这里可以添加不在 Tailscale 网络里的公网 / 内网机器。它们的复制命令直接使用 SSH + tmux，不经过 bastion。</div>
+        <div style="font-weight: 600;">手动服务器</div>
+        <div class="hint">这里可添加不在 Tailscale 网络中的公网 / 内网机器。它们的连接命令直接走 SSH + tmux。</div>
         <div class="manual-list" id="manual-list"></div>
       </section>
 
       <section class="section">
-        <div style="font-weight:600;">新增 / 编辑手动服务器</div>
+        <div style="font-weight: 600;">新增 / 编辑手动服务器</div>
         <div class="grid-2">
-          <div><div class="hint">显示名称</div><input class="input" id="manual-name" type="text"></div>
-          <div><div class="hint">Host / IP</div><input class="input" id="manual-host" type="text"></div>
-          <div><div class="hint">SSH 用户</div><input class="input" id="manual-user" type="text" value="root"></div>
-          <div><div class="hint">端口</div><input class="input" id="manual-port" type="number" value="22"></div>
-          <div><div class="hint">网络类型</div><select class="select" id="manual-network"><option value="private">内网机器</option><option value="public">公网机器</option></select></div>
-          <div><div class="hint">Session 名</div><input class="input" id="manual-session" type="text"></div>
+          <div>
+            <div class="hint">显示名称</div>
+            <input class="input" id="manual-name" type="text">
+          </div>
+          <div>
+            <div class="hint">Host / IP</div>
+            <input class="input" id="manual-host" type="text">
+          </div>
+          <div>
+            <div class="hint">SSH 用户</div>
+            <input class="input" id="manual-user" type="text" value="root">
+          </div>
+          <div>
+            <div class="hint">端口</div>
+            <input class="input" id="manual-port" type="number" value="22">
+          </div>
+          <div>
+            <div class="hint">网络类型</div>
+            <select class="select" id="manual-network">
+              <option value="private">内网机器</option>
+              <option value="public">公网机器</option>
+            </select>
+          </div>
+          <div>
+            <div class="hint">默认 Session 名</div>
+            <input class="input" id="manual-session" type="text">
+          </div>
         </div>
-        <div><div class="hint">标签（用逗号分隔）</div><input class="input" id="manual-tags" type="text" placeholder="prod, db"></div>
-        <div><div class="hint">备注</div><textarea class="textarea" id="manual-note"></textarea></div>
-        <div class="server-actions">
+        <div>
+          <div class="hint">标签（逗号分隔）</div>
+          <input class="input" id="manual-tags" type="text" placeholder="prod, db">
+        </div>
+        <div>
+          <div class="hint">备注</div>
+          <textarea class="textarea" id="manual-note"></textarea>
+        </div>
+        <div class="settings-actions">
           <button class="button primary" id="save-manual" type="button">保存服务器</button>
           <button class="button" id="reset-manual" type="button">清空表单</button>
         </div>
@@ -182,20 +507,16 @@
   </div>
 
   <div class="terminal-wrap" id="terminal-wrap">
-    <section class="terminal">
+    <section class="terminal-panel">
       <div class="terminal-head">
-        <div><div id="terminal-title" style="font-weight:600;">WebSSH</div><div class="hint" id="terminal-command"></div></div>
+        <div>
+          <div id="terminal-title" style="font-weight: 600;">WebSSH</div>
+          <div class="hint" id="terminal-command"></div>
+        </div>
         <button class="button" id="close-terminal" type="button">关闭</button>
       </div>
-      <div class="terminal-screen"><div id="terminal-mount"></div></div>
-      <div>
-        <div class="hint">输入命令后发送。Ctrl+C 可用快捷按钮发送。</div>
-        <div class="terminal-input-row">
-          <input class="input" id="terminal-input" type="text" placeholder="输入后回车或点击发送">
-          <button class="button" id="terminal-send" type="button">发送</button>
-          <button class="button" id="terminal-enter" type="button">回车</button>
-          <button class="button danger" id="terminal-ctrlc" type="button">Ctrl+C</button>
-        </div>
+      <div class="terminal-screen">
+        <div id="terminal-mount"></div>
       </div>
     </section>
   </div>
@@ -205,56 +526,144 @@
   <script>
     (() => {
       const fallbackInterval = {{ refresh_interval|tojson }};
-      const state = { data: null, search: "", activeTag: "", lastFetchedAt: 0, refreshTimer: null, tickTimer: null, manualServers: [], editingManualId: "", terminalSocket: null, terminalInstance: null, terminalFitAddon: null };
+      const state = {
+        data: null,
+        search: "",
+        activeTag: "",
+        lastFetchedAt: 0,
+        refreshTimer: null,
+        tickTimer: null,
+        manualServers: [],
+        editingManualId: "",
+        terminalSocket: null,
+        terminalInstance: null,
+        terminalFitAddon: null,
+        terminalResizeHandler: null,
+      };
+
       const el = {
-        pageTitle: document.getElementById("page-title"), pageSubtitle: document.getElementById("page-subtitle"),
-        summaryTotal: document.getElementById("summary-total"), summaryOnline: document.getElementById("summary-online"),
-        summaryBind: document.getElementById("summary-bind"), jumpboxHint: document.getElementById("jumpbox-hint"),
-        lastUpdated: document.getElementById("last-updated"), authBanner: document.getElementById("auth-banner"),
-        authList: document.getElementById("auth-list"), tagFilters: document.getElementById("tag-filters"),
-        searchInput: document.getElementById("search-input"), refreshButton: document.getElementById("refresh-button"),
-        serverRows: document.getElementById("server-rows"), emptyState: document.getElementById("empty-state"),
-        settingsOverlay: document.getElementById("settings-overlay"), settingsButton: document.getElementById("settings-button"),
-        closeSettings: document.getElementById("close-settings"), settingJumpboxHost: document.getElementById("setting-jumpbox-host"),
-        settingJumpboxUser: document.getElementById("setting-jumpbox-user"), saveSettings: document.getElementById("save-settings"),
-        manualList: document.getElementById("manual-list"), manualName: document.getElementById("manual-name"),
-        manualHost: document.getElementById("manual-host"), manualUser: document.getElementById("manual-user"),
-        manualPort: document.getElementById("manual-port"), manualNetwork: document.getElementById("manual-network"),
-        manualSession: document.getElementById("manual-session"), manualTags: document.getElementById("manual-tags"),
-        manualNote: document.getElementById("manual-note"), saveManual: document.getElementById("save-manual"),
-        resetManual: document.getElementById("reset-manual"), terminalWrap: document.getElementById("terminal-wrap"),
-        terminalTitle: document.getElementById("terminal-title"), terminalCommand: document.getElementById("terminal-command"),
-        terminalMount: document.getElementById("terminal-mount"), terminalInput: document.getElementById("terminal-input"),
-        terminalSend: document.getElementById("terminal-send"), terminalEnter: document.getElementById("terminal-enter"),
-        terminalCtrlc: document.getElementById("terminal-ctrlc"), closeTerminal: document.getElementById("close-terminal"),
+        pageTitle: document.getElementById("page-title"),
+        pageSubtitle: document.getElementById("page-subtitle"),
+        summaryTotal: document.getElementById("summary-total"),
+        summaryOnline: document.getElementById("summary-online"),
+        summaryBind: document.getElementById("summary-bind"),
+        jumpboxHint: document.getElementById("jumpbox-hint"),
+        lastUpdated: document.getElementById("last-updated"),
+        authBanner: document.getElementById("auth-banner"),
+        authList: document.getElementById("auth-list"),
+        tagFilters: document.getElementById("tag-filters"),
+        searchInput: document.getElementById("search-input"),
+        refreshButton: document.getElementById("refresh-button"),
+        serverGrid: document.getElementById("server-grid"),
+        emptyState: document.getElementById("empty-state"),
+        settingsOverlay: document.getElementById("settings-overlay"),
+        settingsButton: document.getElementById("settings-button"),
+        closeSettings: document.getElementById("close-settings"),
+        settingJumpboxHost: document.getElementById("setting-jumpbox-host"),
+        settingJumpboxUser: document.getElementById("setting-jumpbox-user"),
+        saveSettings: document.getElementById("save-settings"),
+        manualList: document.getElementById("manual-list"),
+        manualName: document.getElementById("manual-name"),
+        manualHost: document.getElementById("manual-host"),
+        manualUser: document.getElementById("manual-user"),
+        manualPort: document.getElementById("manual-port"),
+        manualNetwork: document.getElementById("manual-network"),
+        manualSession: document.getElementById("manual-session"),
+        manualTags: document.getElementById("manual-tags"),
+        manualNote: document.getElementById("manual-note"),
+        saveManual: document.getElementById("save-manual"),
+        resetManual: document.getElementById("reset-manual"),
+        terminalWrap: document.getElementById("terminal-wrap"),
+        terminalTitle: document.getElementById("terminal-title"),
+        terminalCommand: document.getElementById("terminal-command"),
+        terminalMount: document.getElementById("terminal-mount"),
+        closeTerminal: document.getElementById("close-terminal"),
       };
 
       function escapeHtml(value) {
-        return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function jsSingleQuote(value) {
+        return String(value).replace(/\\/g, "\\\\").replace(/'/g, "'\\''");
       }
 
       function relativeTime(timestamp) {
         if (!timestamp) return "最后刷新：尚未刷新";
         const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
-        return seconds < 2 ? "最后刷新：刚刚" : `最后刷新：${seconds} 秒前`;
+        if (seconds < 2) return "最后刷新：刚刚";
+        return `最后刷新：${seconds} 秒前`;
       }
 
       function serverStatus(server) {
-        if (server.pending_auth_url) return { label: "待认证", dot: "\u25cf", className: "pending" };
-        if (server.online === true) return { label: "在线", dot: "\u25cf", className: "online" };
-        if (server.online === false) return { label: "离线", dot: "\u25cb", className: "offline" };
-        return { label: "未检测", dot: "\u25cb", className: "offline" };
+        if (server.pending_auth_url) return { label: "待认证", className: "pending" };
+        if (server.online === true) return { label: "在线", className: "online" };
+        if (server.online === false) return { label: "离线", className: "offline" };
+        return { label: "未知", className: "offline" };
+      }
+
+      function canUseWebssh() {
+        return window.innerWidth >= 768;
       }
 
       function filteredServers() {
         if (!state.data) return [];
         const keyword = state.search.trim().toLowerCase();
         return state.data.servers.filter((server) => {
-          const haystack = `${server.display_name} ${server.host || ""} ${server.note || ""}`.toLowerCase();
+          const haystack = `${server.display_name} ${server.host || ""} ${server.note || ""} ${(server.tags || []).join(" ")}`.toLowerCase();
           const matchesKeyword = !keyword || haystack.includes(keyword);
           const matchesTag = !state.activeTag || (server.tags || []).includes(state.activeTag);
           return matchesKeyword && matchesTag;
         });
+      }
+
+      function getSourceLabel(server) {
+        if (server.source === "tailscale") return "Tailscale";
+        return server.network === "public" ? "手动 / 公网" : "手动 / 内网";
+      }
+
+      function getCommandForServer(serverId) {
+        const server = state.data?.servers.find((item) => item.id === serverId);
+        if (!server) return "";
+
+        const userInput = el.serverGrid.querySelector(`[data-user-input="${CSS.escape(serverId)}"]`);
+        const modeInput = el.serverGrid.querySelector(`[data-session-mode="${CSS.escape(serverId)}"]`);
+        const sessionInput = el.serverGrid.querySelector(`[data-session-name="${CSS.escape(serverId)}"]`);
+        const user = (userInput?.value || server.user || state.data.default_target_user).trim() || state.data.default_target_user;
+        const mode = modeInput?.value || "resume";
+        const sessionName = (sessionInput?.value || server.session_name || server.hostname).trim() || server.hostname;
+
+        if (server.source === "tailscale") {
+          if (mode === "direct") {
+            return `ssh -t ${state.data.jumpbox_user}@${state.data.jumpbox_host} "bastion-ssh '${jsSingleQuote(server.hostname)}' '${jsSingleQuote(user)}'"`;
+          }
+          const tmuxCommand = mode === "new" ? "tmux new-session -s" : "tmux new-session -A -s";
+          return `ssh -t ${state.data.jumpbox_user}@${state.data.jumpbox_host} "${tmuxCommand} '${jsSingleQuote(sessionName)}' bastion-ssh '${jsSingleQuote(server.hostname)}' '${jsSingleQuote(user)}'"`;
+        }
+
+        if (mode === "direct") {
+          return `ssh -t -p ${server.port} ${user}@${server.host}`;
+        }
+        const tmuxCommand = mode === "new" ? "tmux new-session -s" : "tmux new-session -A -s";
+        return `ssh -t -p ${server.port} ${user}@${server.host} "${tmuxCommand} '${jsSingleQuote(sessionName)}'"`;
+      }
+
+      function updateCardCommand(serverId) {
+        const commandEl = el.serverGrid.querySelector(`[data-command="${CSS.escape(serverId)}"]`);
+        if (!commandEl) return;
+        commandEl.textContent = getCommandForServer(serverId);
+      }
+
+      async function copyCommand(commandEl) {
+        const text = commandEl.textContent || "";
+        await navigator.clipboard.writeText(text);
+        commandEl.classList.add("copied");
+        window.setTimeout(() => commandEl.classList.remove("copied"), 600);
       }
 
       function renderSummary(servers) {
@@ -262,7 +671,9 @@
         const online = all.filter((item) => item.online === true).length;
         const filteredOnline = servers.filter((item) => item.online === true).length;
         el.summaryTotal.textContent = `总计 ${all.length} 台服务器`;
-        el.summaryOnline.textContent = servers.length === all.length ? `在线 ${online} 台` : `当前结果 ${servers.length} 台，其中在线 ${filteredOnline} 台`;
+        el.summaryOnline.textContent = servers.length === all.length
+          ? `在线 ${online} 台`
+          : `当前结果 ${servers.length} 台，其中在线 ${filteredOnline} 台`;
         el.summaryBind.textContent = `面板地址 ${state.data.bind_address}:${state.data.port}`;
         el.jumpboxHint.textContent = `连接地址 ${state.data.jumpbox_user}@${state.data.jumpbox_host}`;
         el.pageTitle.textContent = state.data.title;
@@ -275,12 +686,14 @@
         state.data.servers.forEach((server) => {
           (server.tags || []).forEach((tag) => counts.set(tag, (counts.get(tag) || 0) + 1));
         });
+
         const tags = ["", ...Array.from(counts.keys()).filter(Boolean).sort()];
         el.tagFilters.innerHTML = tags.map((tag) => {
           const active = tag === state.activeTag;
           const label = tag ? `${tag} ${counts.get(tag)}` : `全部 ${counts.get("")}`;
           return `<button class="chip ${active ? "active" : ""}" type="button" data-tag="${escapeHtml(tag)}">${escapeHtml(label)}</button>`;
         }).join("");
+
         el.tagFilters.querySelectorAll("[data-tag]").forEach((button) => {
           button.addEventListener("click", () => {
             const tag = button.getAttribute("data-tag") || "";
@@ -297,19 +710,21 @@
           el.authList.innerHTML = "";
           return;
         }
+
         el.authBanner.classList.add("visible");
         el.authList.innerHTML = pending.map(([hostname, url]) => `
           <div class="auth-item">
             <div>
-              <div style="font-weight:600;">${escapeHtml(hostname)}</div>
-              <div class="hint">检测到待处理认证链接</div>
+              <div style="font-weight: 600;">${escapeHtml(hostname)}</div>
+              <div class="hint">检测到待处理认证链接。</div>
             </div>
-            <div class="server-actions">
+            <div class="settings-actions">
               <a class="button primary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">打开认证链接</a>
               <button class="button" type="button" data-clear-auth="${escapeHtml(hostname)}">已完成</button>
             </div>
           </div>
         `).join("");
+
         el.authList.querySelectorAll("[data-clear-auth]").forEach((button) => {
           button.addEventListener("click", async () => {
             await fetch("/api/clear-auth", {
@@ -322,123 +737,113 @@
         });
       }
 
-      function renderRows(servers) {
-        el.serverRows.innerHTML = servers.map((server) => {
+      function renderCards(servers) {
+        el.serverGrid.innerHTML = servers.map((server) => {
           const status = serverStatus(server);
-          const sourceClass = server.source === "tailscale" ? "tailscale" : "manual";
-          const tagHtml = (server.tags || []).length ? server.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("") : '<span class="chip">无标签</span>';
-          const sessionText = server.tmux_session_exists ? "已有 tmux 会话" : `tmux: ${escapeHtml(server.session_name || server.hostname)}`;
-          const addressText = server.source === "tailscale" ? `${escapeHtml(server.ip)} · Tailscale` : `${escapeHtml(server.host)}:${escapeHtml(server.port)} · ${server.network === "public" ? "公网" : "内网"}`;
+          const sourceClass = server.source === "tailscale"
+            ? "tailscale"
+            : `manual ${server.network === "public" ? "public" : "private"}`;
+          const tags = (server.tags || []).length
+            ? server.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")
+            : '<span class="chip">无标签</span>';
+          const metaAddress = server.source === "tailscale"
+            ? `${escapeHtml(server.ip)} · ${escapeHtml(server.dns_name || server.hostname)}`
+            : `${escapeHtml(server.host)}:${escapeHtml(server.port)} · ${server.network === "public" ? "公网" : "内网"}`;
+          const websshButton = canUseWebssh()
+            ? `<button class="button primary webssh-button mobile-hidden" type="button" data-webssh="${escapeHtml(server.id)}">WebSSH</button>`
+            : "";
+
           return `
-            <div class="server-row">
-              <div class="server-name">
-                <div class="server-primary">
-                  <span class="server-title">${escapeHtml(server.display_name)}</span>
-                  <span class="source-badge ${sourceClass}">${server.source === "tailscale" ? "Tailscale" : "手动"}</span>
+            <article class="server-card">
+              <div class="server-card-head">
+                <div class="server-title">
+                  <strong>${escapeHtml(server.display_name)}</strong>
+                  <span class="status-label"><span class="dot ${status.className}"></span>${escapeHtml(status.label)}</span>
+                  <span class="source-badge ${sourceClass}">${escapeHtml(getSourceLabel(server))}</span>
                 </div>
-                <div class="hint">${escapeHtml(server.note || "无备注")}</div>
-                <div class="chips">${tagHtml}</div>
-              </div>
-              <div><div>${addressText}</div><div class="hint">${escapeHtml(server.os || "unknown")}</div></div>
-              <div class="status"><span class="dot ${status.className}">${status.dot}</span><span>${status.label}</span></div>
-              <div>
-                <input class="input" data-user-input="${escapeHtml(server.id)}" type="text" value="${escapeHtml(server.user)}">
-                <div style="margin-top:8px;">
-                  <select class="select" data-session-mode="${escapeHtml(server.id)}">
-                    <option value="resume">恢复会话</option>
-                    <option value="new">新建会话</option>
-                    <option value="direct">直接连接</option>
-                  </select>
+                <div class="server-card-actions">
+                  <button class="button" type="button" data-copy-button="${escapeHtml(server.id)}">复制</button>
+                  ${websshButton}
                 </div>
-                <div style="margin-top:8px;">
-                  <input class="input" data-session-name="${escapeHtml(server.id)}" type="text" value="${escapeHtml(server.session_name || server.hostname)}" placeholder="session 名">
+              </div>
+
+              <div class="server-card-meta">
+                <div>
+                  <div class="server-address">${metaAddress}</div>
+                  <div class="server-note">${escapeHtml(server.note || "无备注")}</div>
                 </div>
-                <div class="hint" style="margin-top:6px;">${sessionText}</div>
+                <div class="server-tags">${tags}</div>
               </div>
-              <div><div class="command" data-command="${escapeHtml(server.id)}">${escapeHtml(server.command)}</div></div>
-              <div class="server-actions">
-                <button class="button" type="button" data-copy="${escapeHtml(server.id)}">复制</button>
-                <button class="button primary" type="button" data-webssh="${escapeHtml(server.id)}">WebSSH</button>
-                ${server.source === "manual" ? `<button class="button" type="button" data-edit-manual="${escapeHtml(server.raw_id)}">编辑</button>` : ""}
-                ${server.source === "manual" ? `<button class="button danger" type="button" data-delete-manual="${escapeHtml(server.raw_id)}">删除</button>` : ""}
-              </div>
-            </div>
+
+              <div class="command" data-command="${escapeHtml(server.id)}">${escapeHtml(server.command)}</div>
+
+              <details class="settings-box">
+                <summary>展开设置</summary>
+                <div class="settings-grid">
+                  <div>
+                    <div class="hint">用户</div>
+                    <input class="input" data-user-input="${escapeHtml(server.id)}" type="text" value="${escapeHtml(server.user)}">
+                  </div>
+                  <div>
+                    <div class="hint">连接模式</div>
+                    <select class="select" data-session-mode="${escapeHtml(server.id)}">
+                      <option value="resume">恢复会话</option>
+                      <option value="new">新建会话</option>
+                      <option value="direct">直接连接</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div class="hint">Session 名</div>
+                    <input class="input" data-session-name="${escapeHtml(server.id)}" type="text" value="${escapeHtml(server.session_name || server.hostname)}">
+                  </div>
+                </div>
+              </details>
+
+              ${server.source === "manual" ? `
+                <div class="settings-actions">
+                  <button class="button" type="button" data-edit-manual="${escapeHtml(server.raw_id)}">编辑</button>
+                  <button class="button danger" type="button" data-delete-manual="${escapeHtml(server.raw_id)}">删除</button>
+                </div>
+              ` : ""}
+            </article>
           `;
         }).join("");
 
-        function buildRowCommand(serverId) {
-          const server = state.data.servers.find((item) => item.id === serverId);
-          const userInput = el.serverRows.querySelector(`[data-user-input="${CSS.escape(serverId)}"]`);
-          const modeInput = el.serverRows.querySelector(`[data-session-mode="${CSS.escape(serverId)}"]`);
-          const sessionInput = el.serverRows.querySelector(`[data-session-name="${CSS.escape(serverId)}"]`);
-          if (!server || !userInput || !modeInput || !sessionInput) return "";
-          const user = userInput.value.trim() || state.data.default_target_user;
-          const mode = modeInput.value;
-          const sessionName = sessionInput.value.trim() || server.session_name || server.hostname;
-          if (server.source === "tailscale") {
-            if (mode === "direct") {
-              return `ssh -t ${state.data.jumpbox_user}@${state.data.jumpbox_host} "bastion-ssh '${server.hostname.replace(/'/g, "'\\''")}' '${user.replace(/'/g, "'\\''")}'"`;
-            }
-            const tmuxCommand = mode === "new" ? "tmux new-session -s" : "tmux new-session -A -s";
-            return `ssh -t ${state.data.jumpbox_user}@${state.data.jumpbox_host} "${tmuxCommand} '${sessionName.replace(/'/g, "'\\''")}' bastion-ssh '${server.hostname.replace(/'/g, "'\\''")}' '${user.replace(/'/g, "'\\''")}'"`;
-          }
-          if (mode === "direct") {
-            return `ssh -t -p ${server.port} ${user}@${server.host}`;
-          }
-          const tmuxCommand = mode === "new" ? "tmux new-session -s" : "tmux new-session -A -s";
-          return `ssh -t -p ${server.port} ${user}@${server.host} "${tmuxCommand} '${sessionName.replace(/'/g, "'\\''")}'"`;
-        }
-
-        el.serverRows.querySelectorAll("[data-user-input]").forEach((input) => {
-          input.addEventListener("input", () => {
-            const id = input.getAttribute("data-user-input");
-            const code = el.serverRows.querySelector(`[data-command="${CSS.escape(id)}"]`);
-            if (!code) return;
-            code.textContent = buildRowCommand(id);
-          });
+        el.serverGrid.querySelectorAll("[data-user-input], [data-session-mode], [data-session-name]").forEach((input) => {
+          const attr = input.getAttribute("data-user-input")
+            || input.getAttribute("data-session-mode")
+            || input.getAttribute("data-session-name");
+          const eventName = input.matches("select") ? "change" : "input";
+          input.addEventListener(eventName, () => updateCardCommand(attr));
         });
 
-        el.serverRows.querySelectorAll("[data-session-mode]").forEach((input) => {
-          input.addEventListener("change", () => {
-            const id = input.getAttribute("data-session-mode");
-            const code = el.serverRows.querySelector(`[data-command="${CSS.escape(id)}"]`);
-            if (!code) return;
-            code.textContent = buildRowCommand(id);
-          });
-        });
-
-        el.serverRows.querySelectorAll("[data-session-name]").forEach((input) => {
-          input.addEventListener("input", () => {
-            const id = input.getAttribute("data-session-name");
-            const code = el.serverRows.querySelector(`[data-command="${CSS.escape(id)}"]`);
-            if (!code) return;
-            code.textContent = buildRowCommand(id);
-          });
-        });
-
-        el.serverRows.querySelectorAll("[data-copy]").forEach((button) => {
+        el.serverGrid.querySelectorAll("[data-copy-button]").forEach((button) => {
           button.addEventListener("click", async () => {
-            const id = button.getAttribute("data-copy");
-            const code = el.serverRows.querySelector(`[data-command="${CSS.escape(id)}"]`);
-            if (!code) return;
-            await navigator.clipboard.writeText(code.textContent || "");
-            button.textContent = "已复制";
-            window.setTimeout(() => { button.textContent = "复制"; }, 1600);
+            const id = button.getAttribute("data-copy-button");
+            const commandEl = el.serverGrid.querySelector(`[data-command="${CSS.escape(id)}"]`);
+            if (!commandEl) return;
+            await copyCommand(commandEl);
           });
         });
 
-        el.serverRows.querySelectorAll("[data-webssh]").forEach((button) => {
+        el.serverGrid.querySelectorAll("[data-command]").forEach((commandEl) => {
+          commandEl.addEventListener("click", async () => {
+            await copyCommand(commandEl);
+          });
+        });
+
+        el.serverGrid.querySelectorAll("[data-webssh]").forEach((button) => {
           button.addEventListener("click", () => openTerminal(button.getAttribute("data-webssh")));
         });
 
-        el.serverRows.querySelectorAll("[data-edit-manual]").forEach((button) => {
+        el.serverGrid.querySelectorAll("[data-edit-manual]").forEach((button) => {
           button.addEventListener("click", () => loadManualIntoForm(button.getAttribute("data-edit-manual")));
         });
 
-        el.serverRows.querySelectorAll("[data-delete-manual]").forEach((button) => {
+        el.serverGrid.querySelectorAll("[data-delete-manual]").forEach((button) => {
           button.addEventListener("click", async () => {
             const rawId = button.getAttribute("data-delete-manual");
-            if (!confirm(`删除手动服务器 ${rawId} ?`)) return;
+            if (!confirm(`删除手动服务器 ${rawId}？`)) return;
             await fetch(`/api/manual-servers/${encodeURIComponent(rawId)}`, { method: "DELETE" });
             await loadManualServers();
             await loadServers(true);
@@ -452,13 +857,14 @@
         renderSummary(servers);
         renderTags();
         renderAuthBanner();
+
         if (servers.length) {
           el.emptyState.style.display = "none";
-          renderRows(servers);
+          renderCards(servers);
         } else {
-          el.serverRows.innerHTML = "";
-          el.emptyState.style.display = "";
-          el.emptyState.textContent = state.data.servers.length ? "未找到匹配的服务器" : "当前没有可展示的服务器";
+          el.serverGrid.innerHTML = "";
+          el.emptyState.style.display = "block";
+          el.emptyState.textContent = state.data.servers.length ? "未找到匹配的服务器。" : "当前没有可展示的服务器。";
         }
       }
 
@@ -476,8 +882,9 @@
           scheduleRefresh();
         } catch (error) {
           console.error(error);
-          el.emptyState.style.display = "";
-          el.emptyState.textContent = "读取节点失败，请检查服务状态";
+          el.serverGrid.innerHTML = "";
+          el.emptyState.style.display = "block";
+          el.emptyState.textContent = "读取节点失败，请检查服务状态。";
         }
       }
 
@@ -495,8 +902,11 @@
         state.manualServers = payload.servers || [];
         el.manualList.innerHTML = state.manualServers.map((server) => `
           <div class="manual-item">
-            <div style="font-weight:600;">${escapeHtml(server.display_name)}</div>
-            <div class="hint">${escapeHtml(server.host)}:${escapeHtml(server.port)} · ${server.network === "public" ? "公网" : "内网"}</div>
+            <div class="manual-item-head">
+              <strong>${escapeHtml(server.display_name)}</strong>
+              <div class="chip">${server.network === "public" ? "公网" : "内网"}</div>
+            </div>
+            <div class="hint">${escapeHtml(server.host)}:${escapeHtml(server.port)}</div>
             <div class="hint">${escapeHtml(server.note || "无备注")}</div>
           </div>
         `).join("");
@@ -526,6 +936,7 @@
         el.manualSession.value = server.session_name || "";
         el.manualTags.value = (server.tags || []).join(", ");
         el.manualNote.value = server.note || "";
+        el.settingsOverlay.classList.add("visible");
       }
 
       async function saveManualServer() {
@@ -539,18 +950,23 @@
           tags: el.manualTags.value.split(",").map((item) => item.trim()).filter(Boolean),
           note: el.manualNote.value.trim(),
         };
-        const url = state.editingManualId ? `/api/manual-servers/${encodeURIComponent(state.editingManualId)}` : "/api/manual-servers";
+
+        const url = state.editingManualId
+          ? `/api/manual-servers/${encodeURIComponent(state.editingManualId)}`
+          : "/api/manual-servers";
         const method = state.editingManualId ? "PUT" : "POST";
         const response = await fetch(url, {
           method,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
           alert(data.error || "保存失败");
           return;
         }
+
         resetManualForm();
         await loadManualServers();
         await loadServers(true);
@@ -568,18 +984,52 @@
         await loadServers(true);
       }
 
+      function getTerminalDimensions() {
+        if (!state.terminalInstance) return { cols: 120, rows: 30 };
+        const cols = Math.max(20, Number(state.terminalInstance.cols || 120));
+        const rows = Math.max(10, Number(state.terminalInstance.rows || 30));
+        return { cols, rows };
+      }
+
+      function sendTerminalResize() {
+        if (!state.terminalSocket || state.terminalSocket.readyState !== WebSocket.OPEN) return;
+        if (!state.terminalFitAddon || !state.terminalInstance) return;
+        state.terminalFitAddon.fit();
+        const { cols, rows } = getTerminalDimensions();
+        state.terminalSocket.send(JSON.stringify({ type: "resize", cols, rows }));
+      }
+
       async function openTerminal(serverId) {
-        const server = state.data.servers.find((item) => item.id === serverId);
+        const server = state.data?.servers.find((item) => item.id === serverId);
         if (!server) return;
+        if (!canUseWebssh()) return;
+
         await closeTerminal();
-        if (!window.Terminal) {
-          alert("浏览器终端资源加载失败");
+
+        if (!window.Terminal || !window.FitAddon) {
+          alert("浏览器终端资源加载失败。");
           return;
         }
+
+        const modeInput = el.serverGrid.querySelector(`[data-session-mode="${CSS.escape(serverId)}"]`);
+        const sessionInput = el.serverGrid.querySelector(`[data-session-name="${CSS.escape(serverId)}"]`);
+        const userInput = el.serverGrid.querySelector(`[data-user-input="${CSS.escape(serverId)}"]`);
+        const sessionMode = modeInput ? modeInput.value : "resume";
+        const sessionName = sessionInput ? sessionInput.value.trim() : "";
+        if (userInput) {
+          const normalizedUser = userInput.value.trim() || state.data.default_target_user;
+          userInput.value = normalizedUser;
+          server.user = normalizedUser;
+          updateCardCommand(serverId);
+        }
+
         state.terminalInstance = new window.Terminal({
           cursorBlink: true,
           convertEol: true,
-          scrollback: 5000,
+          scrollback: 8000,
+          fontFamily: '"Cascadia Code", "JetBrains Mono", Consolas, monospace',
+          fontSize: 14,
+          lineHeight: 1.25,
           theme: { background: "#0b0f14", foreground: "#d7e3f4" },
         });
         state.terminalFitAddon = new window.FitAddon.FitAddon();
@@ -587,46 +1037,62 @@
         el.terminalMount.innerHTML = "";
         state.terminalInstance.open(el.terminalMount);
         state.terminalFitAddon.fit();
-        el.terminalTitle.textContent = `WebSSH · ${server.display_name}`;
-        el.terminalCommand.textContent = server.command;
-        el.terminalWrap.classList.add("visible");
-        state.terminalInstance.writeln(`Connecting to ${server.display_name} ...`);
 
-        const modeInput = el.serverRows.querySelector(`[data-session-mode="${CSS.escape(serverId)}"]`);
-        const sessionInput = el.serverRows.querySelector(`[data-session-name="${CSS.escape(serverId)}"]`);
-        const sessionMode = modeInput ? modeInput.value : "resume";
-        const sessionName = sessionInput ? sessionInput.value.trim() : "";
+        el.terminalTitle.textContent = `WebSSH · ${server.display_name}`;
+        el.terminalCommand.textContent = getCommandForServer(serverId);
+        el.terminalWrap.classList.add("visible");
 
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
         const socket = new WebSocket(`${protocol}://${window.location.host}/ws/terminal/${encodeURIComponent(serverId)}`);
+        state.terminalSocket = socket;
+
         socket.addEventListener("open", () => {
+          const { cols, rows } = getTerminalDimensions();
           socket.send(JSON.stringify({
             type: "init",
             session_mode: sessionMode,
             session_name: sessionName,
+            cols,
+            rows,
           }));
+          sendTerminalResize();
         });
-        socket.addEventListener("message", (event) => {
-          if (state.terminalInstance) state.terminalInstance.write(event.data);
-        });
-        socket.addEventListener("close", () => {
-          if (state.terminalInstance) state.terminalInstance.writeln("\r\n[session closed]");
-        });
-        socket.addEventListener("error", () => {
-          if (state.terminalInstance) state.terminalInstance.writeln("\r\n[websocket error]");
-        });
-        state.terminalSocket = socket;
-        window.setTimeout(() => {
-          if (state.terminalFitAddon) state.terminalFitAddon.fit();
-        }, 50);
-      }
 
-      async function sendTerminalInput(data) {
-        if (!state.terminalSocket || state.terminalSocket.readyState !== WebSocket.OPEN) return;
-        state.terminalSocket.send(data);
+        socket.addEventListener("message", (event) => {
+          if (state.terminalInstance) {
+            state.terminalInstance.write(event.data);
+          }
+        });
+
+        socket.addEventListener("close", () => {
+          if (state.terminalInstance) {
+            state.terminalInstance.write("\r\n[session closed]\r\n");
+          }
+        });
+
+        socket.addEventListener("error", () => {
+          if (state.terminalInstance) {
+            state.terminalInstance.write("\r\n[websocket error]\r\n");
+          }
+        });
+
+        state.terminalInstance.onData((data) => socket.send(data));
+        state.terminalInstance.onResize(({ cols, rows }) => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: "resize", cols, rows }));
+          }
+        });
+
+        state.terminalResizeHandler = () => sendTerminalResize();
+        window.addEventListener("resize", state.terminalResizeHandler);
+        window.setTimeout(() => sendTerminalResize(), 50);
       }
 
       async function closeTerminal() {
+        if (state.terminalResizeHandler) {
+          window.removeEventListener("resize", state.terminalResizeHandler);
+          state.terminalResizeHandler = null;
+        }
         if (state.terminalSocket) {
           state.terminalSocket.close();
         }
@@ -655,24 +1121,11 @@
         el.saveManual.addEventListener("click", saveManualServer);
         el.resetManual.addEventListener("click", resetManualForm);
         el.closeTerminal.addEventListener("click", closeTerminal);
-        el.terminalSend.addEventListener("click", async () => {
-          const value = el.terminalInput.value;
-          if (!value) return;
-          el.terminalInput.value = "";
-          await sendTerminalInput(`${value}\n`);
-        });
-        el.terminalEnter.addEventListener("click", () => sendTerminalInput("\n"));
-        el.terminalCtrlc.addEventListener("click", () => sendTerminalInput("\u0003"));
-        el.terminalInput.addEventListener("keydown", async (event) => {
-          if (event.key === "Enter") {
-            const value = el.terminalInput.value;
-            el.terminalInput.value = "";
-            await sendTerminalInput(`${value}\n`);
-            event.preventDefault();
-          }
-        });
+
         document.addEventListener("keydown", (event) => {
-          if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+          if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) {
+            return;
+          }
           if (event.key === "/") {
             event.preventDefault();
             el.searchInput.focus();
@@ -680,11 +1133,11 @@
           } else if (event.key === "r" || event.key === "R") {
             event.preventDefault();
             loadServers(true);
+          } else if (event.key === "Escape") {
+            closeTerminal();
           }
         });
-        window.addEventListener("resize", () => {
-          if (state.terminalFitAddon) state.terminalFitAddon.fit();
-        });
+
         state.tickTimer = window.setInterval(() => {
           el.lastUpdated.textContent = relativeTime(state.lastFetchedAt);
         }, 1000);
