@@ -296,24 +296,42 @@
 
     .card-footer {
       display: flex;
+      flex-direction: column;
       gap: 8px;
       align-items: stretch;
     }
 
-    .command {
-      flex: 1;
-      padding: 12px;
+    .card-footer .command {
+      width: 100%;
+      padding: 10px 12px;
       background: var(--panel-3);
       font-family: var(--font-code);
       font-size: 12px;
-      white-space: pre-wrap;
-      word-break: break-all;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       cursor: pointer;
+      border-radius: 8px;
     }
 
-    .command.copied {
+    .card-footer .command.expanded {
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .card-footer .command.copied {
       border-color: var(--success);
-      box-shadow: 0 0 0 3px rgba(63, 185, 80, 0.18);
+      background: rgba(63, 185, 80, 0.12);
+    }
+
+    .card-footer .button-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .card-footer .button-row .button {
+      flex: 1;
+      min-height: 36px;
     }
 
     .dot {
@@ -422,9 +440,6 @@
       .grid-2 { grid-template-columns: 1fr; }
       .summary { gap: 10px; }
       .terminal-panel { width: 100vw; height: 100vh; border-radius: 0; }
-      .card-footer {
-        flex-direction: column;
-      }
     }
 
     @media (max-width: 767px) {
@@ -744,9 +759,36 @@
 
       async function copyCommand(commandEl) {
         const text = commandEl.textContent || "";
-        await navigator.clipboard.writeText(text);
-        commandEl.classList.add("copied");
-        window.setTimeout(() => commandEl.classList.remove("copied"), 600);
+        let ok = false;
+
+        if (navigator.clipboard && window.isSecureContext) {
+          try {
+            await navigator.clipboard.writeText(text);
+            ok = true;
+          } catch (e) {}
+        }
+
+        if (!ok) {
+          const textarea = document.createElement("textarea");
+          textarea.value = text;
+          textarea.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0;";
+          document.body.appendChild(textarea);
+          textarea.focus();
+          textarea.select();
+          try {
+            ok = document.execCommand("copy");
+          } catch (e) {
+            ok = false;
+          }
+          document.body.removeChild(textarea);
+        }
+
+        if (ok) {
+          commandEl.classList.add("copied");
+          window.setTimeout(() => commandEl.classList.remove("copied"), 600);
+        } else {
+          alert("复制失败，请手动选中命令按 Ctrl+C");
+        }
       }
 
       function renderSummary(servers) {
@@ -857,10 +899,12 @@
               </div>
 
               <div class="card-footer">
-                <div class="command" data-command="${escapeHtml(server.id)}">${escapeHtml(getCommandForServer(server.id))}</div>
-                <button class="button" type="button" data-copy-button="${escapeHtml(server.id)}">复制</button>
-                <button class="button launcher-btn" type="button" data-launcher="${escapeHtml(server.id)}">打开终端</button>
-                <button class="button primary webssh-btn" type="button" data-webssh="${escapeHtml(server.id)}">WebSSH</button>
+                <div class="command" data-command="${escapeHtml(server.id)}" title="点击复制，双击展开/折叠">${escapeHtml(getCommandForServer(server.id))}</div>
+                <div class="button-row">
+                  <button class="button" data-copy-button="${escapeHtml(server.id)}">复制</button>
+                  <button class="button launcher-btn" data-launcher="${escapeHtml(server.id)}">打开终端</button>
+                  <button class="button primary webssh-btn" data-webssh="${escapeHtml(server.id)}">WebSSH</button>
+                </div>
               </div>
             </article>
           `;
@@ -885,8 +929,18 @@
         });
 
         el.serverGrid.querySelectorAll("[data-command]").forEach((commandEl) => {
-          commandEl.addEventListener("click", async () => {
-            await copyCommand(commandEl);
+          let clickTimer = null;
+          commandEl.addEventListener("click", () => {
+            if (clickTimer) {
+              clearTimeout(clickTimer);
+              clickTimer = null;
+              commandEl.classList.toggle("expanded");
+            } else {
+              clickTimer = setTimeout(() => {
+                clickTimer = null;
+                copyCommand(commandEl);
+              }, 220);
+            }
           });
         });
 

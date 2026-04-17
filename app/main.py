@@ -54,93 +54,85 @@ _WINDOWS_INVALID_FILENAME = re.compile(r'[\\/:*?"<>|]+')
 
 LAUNCHER_INSTALL_BAT = r"""@echo off
 setlocal
-
 set "INSTALL_DIR=%LOCALAPPDATA%\bastion"
-set "LAUNCHER=%INSTALL_DIR%\bastion-launcher.bat"
 
-echo Installing Bastion launcher to %INSTALL_DIR%...
-
+echo Installing to %INSTALL_DIR%...
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
-copy /Y "%~dp0bastion-launcher.bat" "%LAUNCHER%" >nul
+copy /Y "%~dp0bastion-launcher.bat" "%INSTALL_DIR%\bastion-launcher.bat" >nul
+copy /Y "%~dp0bastion-launcher.ps1" "%INSTALL_DIR%\bastion-launcher.ps1" >nul
 
 echo Registering bastion:// protocol...
-
 reg add "HKCU\Software\Classes\bastion" /ve /d "URL:Bastion Protocol" /f >nul
 reg add "HKCU\Software\Classes\bastion" /v "URL Protocol" /d "" /f >nul
-reg add "HKCU\Software\Classes\bastion\shell\open\command" /ve /d "\"%LAUNCHER%\" \"%%1\"" /f >nul
+reg add "HKCU\Software\Classes\bastion\shell\open\command" /ve /d "\"%INSTALL_DIR%\bastion-launcher.bat\" \"%%1\"" /f >nul
 
 echo.
-echo [OK] Installation complete.
-echo You can now click "打开终端" buttons on the Bastion panel.
+echo [OK] 安装完成。现在可以在面板点击"打开终端"按钮了。
 echo.
 pause
 """
 
 LAUNCHER_EXECUTOR_BAT = r"""@echo off
-setlocal EnableDelayedExpansion
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bastion-launcher.ps1" "%~1"
+"""
 
-REM 接收协议 URL: bastion://connect?host=xxx&user=xxx&session=xxx&mode=xxx&jumpbox=xxx&via=xxx
-set "URL=%~1"
+LAUNCHER_EXECUTOR_PS1 = r"""param([string]$Url)
 
-REM 剥离协议前缀
-set "URL=!URL:bastion://connect?=!"
-set "URL=!URL:bastion://=!"
+# 解析 bastion://connect?... 
+if ($Url -notmatch '^bastion://connect\?(.+)$') {
+    Write-Host "Invalid URL: $Url"
+    Read-Host "Press Enter to exit"
+    exit 1
+}
 
-REM 解析查询参数
-set "HOST="
-set "USER=root"
-set "SESSION="
-set "MODE=resume"
-set "JUMPBOX="
-set "VIA=tailscale"
-set "PORT=22"
+$query = $matches[1]
+$params = @{
+    host = ""; user = "root"; session = ""; mode = "resume"
+    jumpbox = ""; via = "tailscale"; port = "22"
+}
 
-for %%P in ("!URL:&=" "!") do (
-  set "PAIR=%%~P"
-  for /f "tokens=1,2 delims==" %%A in ("!PAIR!") do (
-    if /i "%%A"=="host" set "HOST=%%B"
-    if /i "%%A"=="user" set "USER=%%B"
-    if /i "%%A"=="session" set "SESSION=%%B"
-    if /i "%%A"=="mode" set "MODE=%%B"
-    if /i "%%A"=="jumpbox" set "JUMPBOX=%%B"
-    if /i "%%A"=="via" set "VIA=%%B"
-    if /i "%%A"=="port" set "PORT=%%B"
-  )
-)
+foreach ($pair in $query -split '&') {
+    $kv = $pair -split '=', 2
+    if ($kv.Count -eq 2) {
+        $key = $kv[0]
+        $val = [System.Uri]::UnescapeDataString($kv[1])
+        if ($params.ContainsKey($key)) {
+            $params[$key] = $val
+        }
+    }
+}
 
-REM 构造 tmux 子命令
-if "!MODE!"=="direct" (
-  set "TMUX_CMD="
-) else if "!MODE!"=="new" (
-  set "TMUX_CMD=tmux new-session -s !SESSION!"
-) else (
-  set "TMUX_CMD=tmux new-session -A -s !SESSION!"
-)
+# 构造 tmux 子命令
+$tmuxCmd = switch ($params.mode) {
+    "direct" { "" }
+    "new"    { "tmux new-session -s $($params.session)" }
+    default  { "tmux new-session -A -s $($params.session)" }
+}
 
-REM 构造完整 SSH 命令
-if "!VIA!"=="tailscale" (
-  if "!MODE!"=="direct" (
-    set "SSH_CMD=ssh -t !JUMPBOX! "bastion-ssh !HOST! !USER!""
-  ) else (
-    set "SSH_CMD=ssh -t !JUMPBOX! "!TMUX_CMD! bastion-ssh !HOST! !USER!""
-  )
-) else (
-  if "!MODE!"=="direct" (
-    set "SSH_CMD=ssh -t -p !PORT! !USER!@!HOST!"
-  ) else (
-    set "SSH_CMD=ssh -t -p !PORT! !USER!@!HOST! "!TMUX_CMD!""
-  )
-)
+# 构造完整 ssh 命令
+if ($params.via -eq "tailscale") {
+    if ($params.mode -eq "direct") {
+        $remote = "bastion-ssh $($params.host) $($params.user)"
+    } else {
+        $remote = "$tmuxCmd bastion-ssh $($params.host) $($params.user)"
+    }
+    $sshArgs = @("-t", $params.jumpbox, $remote)
+} else {
+    if ($params.mode -eq "direct") {
+        $sshArgs = @("-t", "-p", $params.port, "$($params.user)@$($params.host)")
+    } else {
+        $sshArgs = @("-t", "-p", $params.port, "$($params.user)@$($params.host)", $tmuxCmd)
+    }
+}
 
-REM 优先使用 Windows Terminal
-where wt.exe >nul 2>nul
-if %ERRORLEVEL%==0 (
-  start "" wt.exe new-tab --title "!HOST!" cmd /k "!SSH_CMD!"
-) else (
-  start "" cmd /k "!SSH_CMD!"
-)
-
-endlocal
+# 优先用 Windows Terminal
+$wt = Get-Command wt.exe -ErrorAction SilentlyContinue
+if ($wt) {
+    $wtArgs = @("new-tab", "--title", $params.host, "ssh") + $sshArgs
+    Start-Process wt.exe -ArgumentList $wtArgs
+} else {
+    Start-Process ssh -ArgumentList $sshArgs
+}
 """
 
 LAUNCHER_README = r"""Bastion Windows 启动器
@@ -763,6 +755,7 @@ def api_launcher_setup() -> Response:
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("bastion-install.bat", LAUNCHER_INSTALL_BAT)
         zf.writestr("bastion-launcher.bat", LAUNCHER_EXECUTOR_BAT)
+        zf.writestr("bastion-launcher.ps1", LAUNCHER_EXECUTOR_PS1)
         zf.writestr("README.txt", LAUNCHER_README)
     archive.seek(0)
     return Response(
