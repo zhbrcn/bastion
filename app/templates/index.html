@@ -456,6 +456,31 @@
       color: var(--muted);
     }
 
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%) translateY(12px);
+      min-width: min(92vw, 320px);
+      max-width: min(92vw, 420px);
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(22, 27, 34, 0.96);
+      color: var(--text);
+      box-shadow: var(--shadow);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 80;
+      font-size: 13px;
+    }
+
+    .toast.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
     .launcher-btn {
       display: inline-flex;
     }
@@ -635,6 +660,8 @@
     </section>
   </div>
 
+  <div class="toast" id="toast"></div>
+
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
   <script>
@@ -693,6 +720,7 @@
         terminalCommand: document.getElementById("terminal-command"),
         terminalMount: document.getElementById("terminal-mount"),
         closeTerminal: document.getElementById("close-terminal"),
+        toast: document.getElementById("toast"),
       };
 
       function escapeHtml(value) {
@@ -760,6 +788,18 @@
         return mode === "new";
       }
 
+      function showToast(message) {
+        if (!el.toast) return;
+        el.toast.textContent = message;
+        el.toast.classList.add("visible");
+        if (showToast.timer) {
+          window.clearTimeout(showToast.timer);
+        }
+        showToast.timer = window.setTimeout(() => {
+          el.toast.classList.remove("visible");
+        }, 2200);
+      }
+
       function formatAddress(server) {
         if (server.source === "tailscale") {
           const ip = server.ip || server.host || server.hostname;
@@ -773,16 +813,33 @@
         return /Android/i.test(navigator.userAgent) && window.innerWidth < 768;
       }
 
-      async function openTermux(serverId) {
+      async function openConnectBot(serverId) {
+        const server = state.data?.servers.find((item) => item.id === serverId);
+        if (!server) return;
+
         const command = getCommandForServer(serverId);
         const fakeCommandEl = document.createElement("div");
         fakeCommandEl.textContent = command;
         await copyCommand(fakeCommandEl);
 
-        alert("已复制连接命令，接下来会尝试打开 Termux。进入 Termux 后直接长按粘贴执行即可。");
+        const edit = getCardEdit(serverId);
+        let uri = "";
 
-        const termuxIntent = "intent://#Intent;package=com.termux;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end";
-        window.location.href = termuxIntent;
+        if (server.source === "manual") {
+          const user = encodeURIComponent((edit.user || "root").trim() || "root");
+          const host = server.host;
+          const port = Number(server.port || 22);
+          const nickname = encodeURIComponent(server.display_name || server.hostname || host);
+          uri = `ssh://${user}@${host}:${port}/#${nickname}`;
+        } else {
+          const jumpUser = encodeURIComponent((state.data.jumpbox_user || "root").trim() || "root");
+          const jumpHost = state.data.jumpbox_host;
+          const nickname = encodeURIComponent(`jumpbox-${server.display_name || server.hostname}`);
+          uri = `ssh://${jumpUser}@${jumpHost}:22/#${nickname}`;
+        }
+
+        showToast("已复制连接命令，正在打开 ConnectBot。进入后长按粘贴执行。");
+        window.location.href = uri;
       }
 
       function getCommandForServer(serverId) {
@@ -998,7 +1055,7 @@
             if (!server) return;
 
             if (isAndroidMobile()) {
-              await openTermux(serverId);
+              await openConnectBot(serverId);
               return;
             }
 
