@@ -534,7 +534,7 @@
           return;
         }
         state.terminalSessionId = payload.session_id;
-        el.terminalTitle.textContent = `WebSSH · ${server.display_name}`;
+        el.terminalTitle.textContent = `WebSSH（简化终端）· ${server.display_name}`;
         el.terminalCommand.textContent = payload.command;
         el.terminalScreen.textContent = payload.output || "";
         el.terminalWrap.classList.add("visible");

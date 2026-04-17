@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import pty
+import re
 import select
 import signal
 import subprocess
@@ -82,13 +83,28 @@ class TerminalManager:
                 break
             if not data:
                 break
-            chunks.append(data.decode("utf-8", errors="replace"))
+            chunks.append(self._sanitize_output(data.decode("utf-8", errors="replace")))
 
         session.updated_at = time.time()
         if session.process.poll() is not None:
             session.closed = True
 
         return "".join(chunks)
+
+    @staticmethod
+    def _sanitize_output(output: str) -> str:
+        """Strip ANSI escape/control sequences for the simplified web terminal."""
+        ansi_csi = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+        ansi_osc = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
+        ansi_ss3 = re.compile(r"\x1bO.")
+        other_esc = re.compile(r"\x1b[@-_]")
+
+        cleaned = ansi_osc.sub("", output)
+        cleaned = ansi_csi.sub("", cleaned)
+        cleaned = ansi_ss3.sub("", cleaned)
+        cleaned = other_esc.sub("", cleaned)
+        cleaned = cleaned.replace("\r", "")
+        return cleaned
 
     def write(self, session_id: str, data: str) -> bool:
         """Write input bytes to a PTY."""

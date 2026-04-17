@@ -106,19 +106,10 @@ def _build_server_command(server: dict[str, Any], settings: dict[str, Any]) -> s
 def _build_terminal_command(server: dict[str, Any], settings: dict[str, Any]) -> str:
     """Build a server-side command for the web terminal session."""
     if server["source"] == "tailscale":
-        session_name = f"{settings.get('defaults', {}).get('tmux_prefix', '')}{server['hostname']}"
-        return (
-            "tmux new-session -A -s "
-            f"{shlex.quote(session_name)} "
-            f"bastion-ssh {shlex.quote(server['hostname'])} {shlex.quote(server['user'])}"
-        )
+        return f"bastion-ssh {shlex.quote(server['hostname'])} {shlex.quote(server['user'])}"
 
-    session_name = server.get("session_name") or server["hostname"]
     port = int(server.get("port", 22))
-    return (
-        f"ssh -tt -p {port} {shlex.quote(server['user'])}@{shlex.quote(server['host'])} "
-        f"{shlex.quote('tmux new-session -A -s ' + shlex.quote(session_name))}"
-    )
+    return f"ssh -tt -p {port} {shlex.quote(server['user'])}@{shlex.quote(server['host'])}"
 
 
 def _collect_servers() -> dict[str, Any]:
