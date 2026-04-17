@@ -470,20 +470,24 @@
       .summary { gap: 10px; }
       .terminal-panel { width: 100vw; height: 100vh; border-radius: 0; }
       .card-meta {
-        grid-template-columns: minmax(0, 1fr);
+        grid-template-columns: minmax(0, 1fr) auto;
       }
-      .card-meta .sep,
+      .meta-address {
+        grid-column: 1 / -1;
+      }
       .card-meta .mode-extra {
         display: none !important;
       }
       .meta-select {
-        justify-self: start;
+        justify-self: end;
       }
     }
 
     @media (max-width: 767px) {
-      .launcher-btn { display: none !important; }
       .webssh-btn { display: none !important; }
+      .card-footer .button-row {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -765,6 +769,22 @@
         return `${server.host}:${server.port}`;
       }
 
+      function isAndroidMobile() {
+        return /Android/i.test(navigator.userAgent) && window.innerWidth < 768;
+      }
+
+      async function openTermux(serverId) {
+        const command = getCommandForServer(serverId);
+        const fakeCommandEl = document.createElement("div");
+        fakeCommandEl.textContent = command;
+        await copyCommand(fakeCommandEl);
+
+        alert("已复制连接命令，接下来会尝试打开 Termux。进入 Termux 后直接长按粘贴执行即可。");
+
+        const termuxIntent = "intent://#Intent;package=com.termux;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end";
+        window.location.href = termuxIntent;
+      }
+
       function getCommandForServer(serverId) {
         const server = state.data?.servers.find((item) => item.id === serverId);
         if (!server) return "";
@@ -972,10 +992,16 @@
         });
 
         el.serverGrid.querySelectorAll("[data-launcher]").forEach((button) => {
-          button.addEventListener("click", () => {
+          button.addEventListener("click", async () => {
             const serverId = button.getAttribute("data-launcher");
             const server = state.data.servers.find((s) => s.id === serverId);
             if (!server) return;
+
+            if (isAndroidMobile()) {
+              await openTermux(serverId);
+              return;
+            }
+
             const edit = getCardEdit(serverId);
             const params = new URLSearchParams({
               host: server.source === "tailscale" ? server.hostname : server.host,

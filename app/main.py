@@ -121,6 +121,17 @@ foreach ($pair in $query -split '&') {
     }
 }
 
+function Quote-Arg {
+    param([string]$Value)
+    if ([string]::IsNullOrEmpty($Value)) {
+        return '""'
+    }
+    if ($Value -match '[\s"]') {
+        return '"' + ($Value -replace '"', '\"') + '"'
+    }
+    return $Value
+}
+
 # 构造 tmux 子命令
 $tmuxCmd = switch ($params.mode) {
     "direct" { "" }
@@ -144,13 +155,16 @@ if ($params.via -eq "tailscale") {
     }
 }
 
+# 组装成单条 ssh 命令，交给终端里的 cmd /k 执行
+$sshCmd = 'ssh ' + (($sshArgs | ForEach-Object { Quote-Arg $_ }) -join ' ')
+
 # 优先用 Windows Terminal
 $wt = Get-Command wt.exe -ErrorAction SilentlyContinue
 if ($wt) {
-    $wtArgs = @("new-tab", "--title", $params.host, "--", "ssh") + $sshArgs
+    $wtArgs = @("new-tab", "--title", $params.host, "cmd", "/k", $sshCmd)
     Start-Process wt.exe -ArgumentList $wtArgs
 } else {
-    Start-Process ssh -ArgumentList $sshArgs
+    Start-Process cmd.exe -ArgumentList @("/k", $sshCmd)
 }
 """
 
