@@ -1,0 +1,27 @@
+# 手动维护的服务器列表
+manual_servers:
+  # - id: prod-web
+  #   name: "生产 Web"
+  #   host: "203.0.113.10"
+  #   port: 22
+  #   user: "root"
+  #   note: "公网机器，不经过 bastion，直接 SSH + tmux"
+  #   tags: ["prod", "web"]
+  #   network: "public"
+  #   os: "linux"
+  #   hidden: false
+  #   connect_mode: "direct"
+  #   session_name: "prod-web"
+  #
+  # - id: office-db
+  #   name: "办公室数据库"
+  #   host: "192.168.2.20"
+  #   port: 22
+  #   user: "postgres"
+  #   note: "内网机器"
+  #   tags: ["db", "private"]
+  #   network: "private"
+  #   os: "linux"
+  #   hidden: false
+  #   connect_mode: "direct"
+  #   session_name: "office-db"

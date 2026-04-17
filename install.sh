@@ -103,6 +103,12 @@ install_config() {
     else
         log_warn "已存在 ${CONFIG_DIR}/overrides.yaml，跳过覆盖"
     fi
+
+    if [[ -f "${PROJECT_ROOT}/config/servers.yaml.example" && ! -f "${CONFIG_DIR}/servers.yaml" ]]; then
+        cp "${PROJECT_ROOT}/config/servers.yaml.example" "${CONFIG_DIR}/servers.yaml"
+    elif [[ -f "${CONFIG_DIR}/servers.yaml" ]]; then
+        log_warn "已存在 ${CONFIG_DIR}/servers.yaml，跳过覆盖"
+    fi
 }
 
 install_wrapper() {

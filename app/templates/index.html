@@ -7,357 +7,275 @@
   <style>
     :root {
       color-scheme: dark light;
-      --bg: #0d1117;
-      --card: #161b22;
-      --card-alt: #11161d;
-      --border: #21262d;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --primary: #58a6ff;
-      --success: #3fb950;
-      --warning: #d29922;
-      --warning-soft: rgba(210, 153, 34, 0.1);
-      --chip-soft: rgba(88, 166, 255, 0.12);
-      --radius-card: 6px;
-      --radius-ui: 4px;
-      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-      --font-code: "SF Mono", Monaco, "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+      --bg: #0d1117; --panel: #161b22; --panel-2: #11161d; --border: #21262d;
+      --text: #e6edf3; --muted: #8b949e; --primary: #58a6ff; --success: #3fb950;
+      --warning: #d29922; --danger: #f85149; --soft: rgba(88,166,255,.12);
+      --radius: 6px; --font-ui: -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+      --font-code: "SF Mono",Monaco,"Cascadia Code","JetBrains Mono",Consolas,monospace;
     }
-
     @media (prefers-color-scheme: light) {
       :root {
-        --bg: #ffffff;
-        --card: #f6f8fa;
-        --card-alt: #ffffff;
-        --border: #d0d7de;
-        --text: #1f2328;
-        --muted: #656d76;
-        --primary: #0969da;
-        --success: #1a7f37;
-        --warning: #9a6700;
-        --warning-soft: rgba(210, 153, 34, 0.12);
-        --chip-soft: rgba(9, 105, 218, 0.08);
+        --bg: #ffffff; --panel: #f6f8fa; --panel-2: #ffffff; --border: #d0d7de;
+        --text: #1f2328; --muted: #656d76; --primary: #0969da; --success: #1a7f37;
+        --warning: #9a6700; --danger: #cf222e; --soft: rgba(9,105,218,.08);
       }
     }
-
     * { box-sizing: border-box; }
     html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-ui); }
     body { line-height: 1.5; }
-    button, input, a { font: inherit; }
+    button, input, select, textarea { font: inherit; }
     button { cursor: pointer; }
-    a { color: var(--primary); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .page { max-width: 1280px; margin: 0 auto; padding: 24px; }
-    .row { display: flex; gap: 16px; }
-    .wrap { flex-wrap: wrap; }
-    .between { justify-content: space-between; }
-    .center { align-items: center; }
-    .topbar { align-items: flex-start; margin-bottom: 24px; }
-    .title-wrap h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; }
-    .title-wrap p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
-    .button, .copy-button, .auth-button {
-      min-height: 36px;
-      padding: 8px 12px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-ui);
-      background: var(--card);
-      color: var(--text);
-      transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    .page { max-width: 1480px; margin: 0 auto; padding: 24px; }
+    .topbar, .toolbar, .server-actions, .auth-item, .drawer-head, .terminal-head { display: flex; gap: 12px; }
+    .topbar, .toolbar, .drawer-head, .terminal-head { justify-content: space-between; align-items: center; flex-wrap: wrap; }
+    .summary { display: flex; gap: 24px; flex-wrap: wrap; margin: 16px 0; color: var(--muted); font-size: 14px; }
+    .subtitle, .muted, .hint { color: var(--muted); }
+    .subtitle { margin-top: 4px; font-size: 14px; }
+    .button, .input, .select, .textarea {
+      border: 1px solid var(--border); background: var(--panel); color: var(--text); border-radius: 4px;
     }
-    .button:hover, .copy-button:hover, .auth-button:hover { background: var(--card-alt); text-decoration: none; }
-    .button.primary, .copy-button.primary, .auth-button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
-    .copy-button.is-copied { background: var(--success); border-color: var(--success); color: #fff; }
-    .statusbar {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, max-content));
-      gap: 12px;
-      margin-bottom: 16px;
-      color: var(--muted);
-      font-size: 14px;
+    .button { min-height: 36px; padding: 8px 12px; }
+    .button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .button.danger { color: var(--danger); background: transparent; }
+    .button.success { background: var(--success); border-color: var(--success); color: #fff; }
+    .input, .select, .textarea { width: 100%; min-height: 36px; padding: 8px 10px; }
+    .textarea { min-height: 80px; resize: vertical; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip, .source-badge {
+      display: inline-flex; align-items: center; min-height: 28px; padding: 2px 10px;
+      border: 1px solid var(--border); border-radius: 999px; background: var(--panel); color: var(--muted);
     }
-    .auth-banner {
-      display: none;
-      margin-bottom: 24px;
-      padding: 16px;
-      border: 1px solid rgba(210, 153, 34, 0.35);
-      border-radius: var(--radius-card);
-      background: var(--warning-soft);
+    .chip.active { background: var(--soft); color: var(--primary); border-color: rgba(88,166,255,.35); }
+    .server-list, .auth-banner, .drawer, .terminal, .empty {
+      border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel);
     }
+    .auth-banner { display: none; padding: 16px; margin-bottom: 16px; }
     .auth-banner.visible { display: block; }
-    .auth-list { display: grid; gap: 10px; }
-    .auth-item, .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-card);
+    .auth-list, .manual-list { display: grid; gap: 10px; }
+    .auth-item, .manual-item { padding: 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel-2); }
+    .server-head, .server-row {
+      display: grid; grid-template-columns: 1.5fr 1.2fr .8fr 1fr 2fr 1fr; gap: 12px; padding: 12px 16px; align-items: center;
     }
-    .auth-item { padding: 12px; }
-    .auth-item strong { display: block; margin-bottom: 2px; }
-    .controls { align-items: flex-start; margin-bottom: 24px; }
-    .tag-filters { display: flex; gap: 8px; flex-wrap: wrap; }
-    .tag-button, .chip, .session-badge {
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: var(--card);
-      color: var(--muted);
+    .server-head { background: var(--panel-2); color: var(--muted); font-size: 13px; border-bottom: 1px solid var(--border); }
+    .server-row { border-bottom: 1px solid var(--border); }
+    .server-row:last-child { border-bottom: 0; }
+    .server-name { display: grid; gap: 4px; min-width: 0; }
+    .server-primary { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .server-title { font-weight: 600; word-break: break-word; }
+    .status { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+    .dot.online { color: var(--success); } .dot.offline { color: var(--muted); } .dot.pending { color: var(--warning); }
+    .source-badge.tailscale { color: var(--primary); } .source-badge.manual { color: var(--warning); }
+    .command {
+      font-family: var(--font-code); font-size: 12px; white-space: nowrap; overflow-x: auto;
+      padding: 8px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel-2);
     }
-    .tag-button { min-height: 32px; padding: 6px 10px; }
-    .tag-button.active { background: var(--chip-soft); color: var(--primary); border-color: rgba(88, 166, 255, 0.35); }
-    .search-wrap { width: min(320px, 100%); }
-    .search-input, .user-input {
-      width: 100%;
-      min-height: 38px;
-      padding: 8px 12px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-ui);
-      background: var(--card);
-      color: var(--text);
-      outline: none;
+    .empty { padding: 28px; text-align: center; color: var(--muted); margin-top: 16px; }
+    .overlay, .terminal-wrap {
+      position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; z-index: 40;
     }
-    .search-input:focus, .user-input:focus { border-color: var(--primary); }
-    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 16px; }
-    .card { padding: 16px; display: grid; gap: 14px; }
-    .card.offline { opacity: 0.5; }
-    .card-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
-    .hostname-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .hostname { font-size: 18px; font-weight: 600; word-break: break-word; }
-    .meta, .help { color: var(--muted); }
-    .meta { font-size: 14px; }
-    .help { font-size: 12px; }
-    .status-pill { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; white-space: nowrap; }
-    .dot { font-size: 14px; line-height: 1; }
-    .online { color: var(--success); }
-    .offline-dot { color: var(--muted); }
-    .pending { color: var(--warning); }
-    .chip, .session-badge { display: inline-flex; align-items: center; min-height: 26px; padding: 2px 8px; font-size: 12px; }
-    .field { display: grid; gap: 6px; }
-    .field label { color: var(--muted); font-size: 13px; }
-    .command-box { display: grid; gap: 8px; }
-    .command-box code {
-      display: block;
-      overflow-x: auto;
-      white-space: nowrap;
-      padding: 12px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-ui);
-      background: var(--card-alt);
-      font-family: var(--font-code);
-      font-size: 13px;
+    .overlay.visible, .terminal-wrap.visible { display: flex; }
+    .overlay { align-items: stretch; justify-content: flex-end; }
+    .drawer {
+      width: min(560px, 100vw); height: 100%; padding: 20px; overflow-y: auto;
+      border-radius: 0; border-right: 0; border-top: 0; border-bottom: 0;
     }
-    .empty-state, .loading-state {
-      padding: 32px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-card);
-      background: var(--card);
-      text-align: center;
-      color: var(--muted);
+    .section { display: grid; gap: 12px; margin-bottom: 24px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .terminal-wrap { align-items: center; justify-content: center; z-index: 50; }
+    .terminal { width: min(1100px, 96vw); height: min(780px, 92vh); padding: 16px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; }
+    .terminal-screen {
+      background: #0b0f14; color: #d7e3f4; border: 1px solid var(--border); border-radius: 4px; padding: 12px;
+      overflow: auto; font-family: var(--font-code); font-size: 13px; white-space: pre-wrap;
     }
-    .footer { margin-top: 24px; color: var(--muted); font-size: 13px; }
-    .mono { font-family: var(--font-code); }
-    .hidden { display: none !important; }
-
-    @media (max-width: 767px) {
-      .page { padding: 16px; }
-      .topbar, .controls, .footer, .auth-item, .card-actions, .auth-head { flex-direction: column; align-items: stretch; }
-      .statusbar { grid-template-columns: 1fr; gap: 6px; }
-      .cards { grid-template-columns: 1fr; }
-      .hostname { font-size: 16px; }
-      .button, .copy-button, .auth-button { width: 100%; }
-      .search-wrap { width: 100%; }
+    .terminal-input-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; }
+    @media (max-width: 980px) {
+      .page { padding: 16px; } .server-head { display: none; } .server-row { grid-template-columns: 1fr; gap: 10px; }
+      .grid-2, .terminal-input-row { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
   <main class="page">
-    <header class="row between wrap topbar">
-      <div class="title-wrap">
+    <header class="topbar">
+      <div>
         <h1 id="page-title">{{ title }}</h1>
-        <p id="page-subtitle">{{ subtitle }}</p>
+        <div class="subtitle" id="page-subtitle">{{ subtitle }}</div>
       </div>
-      <div class="row wrap">
-        <a class="button" href="/api/ssh-config">&#19979;&#36733; SSH config</a>
-        <button class="button" id="refresh-button" type="button">&#21047;&#26032;</button>
+      <div class="server-actions">
+        <a class="button" href="/api/ssh-config">下载 SSH config</a>
+        <button class="button" id="refresh-button" type="button">刷新</button>
+        <button class="button primary" id="settings-button" type="button">管理</button>
       </div>
     </header>
 
-    <section class="statusbar">
-      <div id="summary-total">&#24635;&#35745; 0 &#21488;&#26381;&#21153;&#22120;</div>
-      <div id="summary-online">&#22312;&#32447; 0 &#21488;</div>
-      <div id="summary-bind">&#38754;&#26495;&#22320;&#22336; --</div>
+    <section class="summary">
+      <div id="summary-total">总计 0 台服务器</div>
+      <div id="summary-online">在线 0 台</div>
+      <div id="summary-bind">面板地址 --</div>
+      <div id="jumpbox-hint">连接地址 --</div>
+      <div id="last-updated">最后刷新：尚未刷新</div>
     </section>
 
-    <section class="auth-banner" id="auth-banner" aria-live="polite">
-      <div class="row between wrap auth-head" style="margin-bottom: 12px;">
-        <div>
-          <div style="font-weight: 600;">&#20197;&#19979;&#33410;&#28857;&#38656;&#35201; Tailscale &#35748;&#35777;</div>
-          <div class="help">&#39318;&#27425;&#36830;&#25509;&#26102;&#22914;&#26524;&#20986;&#29616;&#27983;&#35272;&#22120;&#35748;&#35777;&#38142;&#25509;&#65292;&#21487;&#22312;&#36825;&#37324;&#22788;&#29702;</div>
-        </div>
-      </div>
+    <section class="auth-banner" id="auth-banner">
+      <div class="muted" style="margin-bottom: 12px;">以下节点需要 Tailscale 认证</div>
       <div class="auth-list" id="auth-list"></div>
     </section>
 
-    <section class="row between wrap controls">
-      <div class="tag-filters" id="tag-filters"></div>
-      <div class="search-wrap">
-        <input class="search-input" id="search-input" type="search" placeholder="&#25628;&#32034; hostname &#25110;&#22791;&#27880;&#65292;&#25353; / &#24555;&#36895;&#32858;&#28966;" autocomplete="off" spellcheck="false">
+    <section class="toolbar">
+      <div class="chips" id="tag-filters"></div>
+      <input class="input" id="search-input" type="search" placeholder="搜索名称、地址、备注，按 / 快速聚焦" style="width:min(360px,100vw);">
+    </section>
+
+    <section class="server-list">
+      <div class="server-head">
+        <div>服务器</div><div>地址 / 来源</div><div>状态</div><div>用户 / 会话</div><div>连接命令</div><div>操作</div>
+      </div>
+      <div id="server-rows"></div>
+    </section>
+    <div class="empty" id="empty-state" style="display:none;"></div>
+  </main>
+
+  <div class="overlay" id="settings-overlay">
+    <aside class="drawer">
+      <div class="drawer-head">
+        <h2 style="margin:0;">管理面板</h2>
+        <button class="button" id="close-settings" type="button">关闭</button>
+      </div>
+
+      <section class="section">
+        <div style="font-weight:600;">连接设置</div>
+        <div class="hint">控制复制命令里跳板机使用的地址和用户。这里可以填 192.168.x.x，也可以继续用 auto。</div>
+        <div class="grid-2">
+          <div><div class="hint">跳板机地址</div><input class="input" id="setting-jumpbox-host" type="text" placeholder="auto 或 192.168.2.112"></div>
+          <div><div class="hint">跳板机用户</div><input class="input" id="setting-jumpbox-user" type="text" placeholder="root"></div>
+        </div>
+        <div class="server-actions"><button class="button primary" id="save-settings" type="button">保存设置</button></div>
+      </section>
+
+      <section class="section">
+        <div style="font-weight:600;">手动服务器</div>
+        <div class="hint">这里可以添加不在 Tailscale 网络里的公网 / 内网机器。它们的复制命令直接使用 SSH + tmux，不经过 bastion。</div>
+        <div class="manual-list" id="manual-list"></div>
+      </section>
+
+      <section class="section">
+        <div style="font-weight:600;">新增 / 编辑手动服务器</div>
+        <div class="grid-2">
+          <div><div class="hint">显示名称</div><input class="input" id="manual-name" type="text"></div>
+          <div><div class="hint">Host / IP</div><input class="input" id="manual-host" type="text"></div>
+          <div><div class="hint">SSH 用户</div><input class="input" id="manual-user" type="text" value="root"></div>
+          <div><div class="hint">端口</div><input class="input" id="manual-port" type="number" value="22"></div>
+          <div><div class="hint">网络类型</div><select class="select" id="manual-network"><option value="private">内网机器</option><option value="public">公网机器</option></select></div>
+          <div><div class="hint">Session 名</div><input class="input" id="manual-session" type="text"></div>
+        </div>
+        <div><div class="hint">标签（用逗号分隔）</div><input class="input" id="manual-tags" type="text" placeholder="prod, db"></div>
+        <div><div class="hint">备注</div><textarea class="textarea" id="manual-note"></textarea></div>
+        <div class="server-actions">
+          <button class="button primary" id="save-manual" type="button">保存服务器</button>
+          <button class="button" id="reset-manual" type="button">清空表单</button>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="terminal-wrap" id="terminal-wrap">
+    <section class="terminal">
+      <div class="terminal-head">
+        <div><div id="terminal-title" style="font-weight:600;">WebSSH</div><div class="hint" id="terminal-command"></div></div>
+        <button class="button" id="close-terminal" type="button">关闭</button>
+      </div>
+      <pre class="terminal-screen" id="terminal-screen"></pre>
+      <div>
+        <div class="hint">输入命令后发送。Ctrl+C 可用快捷按钮发送。</div>
+        <div class="terminal-input-row">
+          <input class="input" id="terminal-input" type="text" placeholder="输入后回车或点击发送">
+          <button class="button" id="terminal-send" type="button">发送</button>
+          <button class="button" id="terminal-enter" type="button">回车</button>
+          <button class="button danger" id="terminal-ctrlc" type="button">Ctrl+C</button>
+        </div>
       </div>
     </section>
-
-    <section id="content-area">
-      <div class="loading-state" id="loading-state">&#27491;&#22312;&#35835;&#21462; Tailscale &#33410;&#28857;&#21015;&#34920;&#8230;</div>
-      <div class="cards hidden" id="cards" aria-live="polite"></div>
-      <div class="empty-state hidden" id="empty-state"></div>
-    </section>
-
-    <footer class="row between wrap footer">
-      <div id="last-updated">&#26368;&#21518;&#21047;&#26032;&#65306;&#23578;&#26410;&#21047;&#26032;</div>
-      <div class="mono" id="jumpbox-hint">jumpbox: --</div>
-    </footer>
-  </main>
+  </div>
 
   <script>
     (() => {
-      const TEXT = {
-        statusPending: "\u5f85\u8ba4\u8bc1",
-        statusOnline: "\u5728\u7ebf",
-        statusOffline: "\u79bb\u7ebf",
-        lastRefreshNever: "\u6700\u540e\u5237\u65b0\uff1a\u5c1a\u672a\u5237\u65b0",
-        lastRefreshNow: "\u6700\u540e\u5237\u65b0\uff1a\u521a\u521a",
-        lastRefreshAgo: (seconds) => `\u6700\u540e\u5237\u65b0\uff1a${seconds} \u79d2\u524d`,
-        totalServers: (count) => `\u603b\u8ba1 ${count} \u53f0\u670d\u52a1\u5668`,
-        onlineServers: (count) => `\u5728\u7ebf ${count} \u53f0`,
-        filteredServers: (count, online) => `\u5f53\u524d\u7ed3\u679c ${count} \u53f0\uff0c\u5176\u4e2d\u5728\u7ebf ${online} \u53f0`,
-        bindAddress: (host, port) => `\u9762\u677f\u5730\u5740 ${host}:${port}`,
-        subtitle: (text, total, online) => `${text} \u00b7 \u5171 ${total} \u53f0\u670d\u52a1\u5668 \u00b7 ${online} \u53f0\u5728\u7ebf`,
-        allTag: (count) => `\u5168\u90e8 ${count}`,
-        pendingAuthHelp: "\u68c0\u6d4b\u5230\u5f85\u5904\u7406\u8ba4\u8bc1\u94fe\u63a5",
-        openAuth: "\u6253\u5f00\u8ba4\u8bc1\u94fe\u63a5",
-        authDone: "\u5df2\u5b8c\u6210",
-        noTag: "\u65e0\u6807\u7b7e",
-        noNote: "\u65e0\u5907\u6ce8",
-        activeSession: "\u25c7 \u6d3b\u8dc3\u4f1a\u8bdd",
-        userLabel: "\u7528\u6237",
-        copyHelp: "\u590d\u5236\u540e\u7c98\u8d34\u5230\u672c\u5730 SSH \u5ba2\u6237\u7aef\u5373\u53ef\u8fde\u63a5",
-        systemPrefix: "\u7cfb\u7edf: ",
-        copy: "\u590d\u5236",
-        copied: "\u5df2\u590d\u5236 \u2713",
-        copyFailed: "\u590d\u5236\u5931\u8d25",
-        emptyNetwork: "Tailscale \u7f51\u7edc\u5185\u6682\u65f6\u65e0\u5176\u4ed6\u8282\u70b9",
-        emptySearch: "\u672a\u627e\u5230\u5339\u914d\u7684\u670d\u52a1\u5668",
-        loadFailed: "\u8bfb\u53d6\u8282\u70b9\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5 tailscale \u4e0e\u670d\u52a1\u72b6\u6001",
-      };
-
       const fallbackInterval = {{ refresh_interval|tojson }};
-      const state = {
-        data: null,
-        search: "",
-        activeTag: "",
-        lastFetchedAt: 0,
-        refreshTimer: null,
-        tickTimer: null,
-        copyTimers: new Map(),
-      };
-
+      const state = { data: null, search: "", activeTag: "", lastFetchedAt: 0, refreshTimer: null, tickTimer: null, manualServers: [], editingManualId: "", terminalSessionId: "", terminalPoller: null };
       const el = {
-        pageTitle: document.getElementById("page-title"),
-        pageSubtitle: document.getElementById("page-subtitle"),
-        summaryTotal: document.getElementById("summary-total"),
-        summaryOnline: document.getElementById("summary-online"),
-        summaryBind: document.getElementById("summary-bind"),
-        authBanner: document.getElementById("auth-banner"),
-        authList: document.getElementById("auth-list"),
-        tagFilters: document.getElementById("tag-filters"),
-        searchInput: document.getElementById("search-input"),
-        refreshButton: document.getElementById("refresh-button"),
-        loadingState: document.getElementById("loading-state"),
-        cards: document.getElementById("cards"),
-        emptyState: document.getElementById("empty-state"),
-        lastUpdated: document.getElementById("last-updated"),
-        jumpboxHint: document.getElementById("jumpbox-hint"),
+        pageTitle: document.getElementById("page-title"), pageSubtitle: document.getElementById("page-subtitle"),
+        summaryTotal: document.getElementById("summary-total"), summaryOnline: document.getElementById("summary-online"),
+        summaryBind: document.getElementById("summary-bind"), jumpboxHint: document.getElementById("jumpbox-hint"),
+        lastUpdated: document.getElementById("last-updated"), authBanner: document.getElementById("auth-banner"),
+        authList: document.getElementById("auth-list"), tagFilters: document.getElementById("tag-filters"),
+        searchInput: document.getElementById("search-input"), refreshButton: document.getElementById("refresh-button"),
+        serverRows: document.getElementById("server-rows"), emptyState: document.getElementById("empty-state"),
+        settingsOverlay: document.getElementById("settings-overlay"), settingsButton: document.getElementById("settings-button"),
+        closeSettings: document.getElementById("close-settings"), settingJumpboxHost: document.getElementById("setting-jumpbox-host"),
+        settingJumpboxUser: document.getElementById("setting-jumpbox-user"), saveSettings: document.getElementById("save-settings"),
+        manualList: document.getElementById("manual-list"), manualName: document.getElementById("manual-name"),
+        manualHost: document.getElementById("manual-host"), manualUser: document.getElementById("manual-user"),
+        manualPort: document.getElementById("manual-port"), manualNetwork: document.getElementById("manual-network"),
+        manualSession: document.getElementById("manual-session"), manualTags: document.getElementById("manual-tags"),
+        manualNote: document.getElementById("manual-note"), saveManual: document.getElementById("save-manual"),
+        resetManual: document.getElementById("reset-manual"), terminalWrap: document.getElementById("terminal-wrap"),
+        terminalTitle: document.getElementById("terminal-title"), terminalCommand: document.getElementById("terminal-command"),
+        terminalScreen: document.getElementById("terminal-screen"), terminalInput: document.getElementById("terminal-input"),
+        terminalSend: document.getElementById("terminal-send"), terminalEnter: document.getElementById("terminal-enter"),
+        terminalCtrlc: document.getElementById("terminal-ctrlc"), closeTerminal: document.getElementById("close-terminal"),
       };
 
       function escapeHtml(value) {
-        return String(value)
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&#39;");
-      }
-
-      function shellEscape(value) {
-        return `'${String(value).replace(/'/g, `'\\''`)}'`;
-      }
-
-      function buildCommand(hostname, targetUser) {
-        const sessionName = `${state.data.tmux_prefix}${hostname}`;
-        const remote = `tmux new-session -A -s ${shellEscape(sessionName)} bastion-ssh ${shellEscape(hostname)} ${shellEscape(targetUser)}`;
-        return `ssh -t ${state.data.jumpbox_user}@${state.data.jumpbox_host} "${remote}"`;
-      }
-
-      function statusMeta(server) {
-        if (server.pending_auth_url) {
-          return { label: TEXT.statusPending, dot: "\u25cf", className: "pending" };
-        }
-        if (server.online) {
-          return { label: TEXT.statusOnline, dot: "\u25cf", className: "online" };
-        }
-        return { label: TEXT.statusOffline, dot: "\u25cb", className: "offline-dot" };
+        return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
       }
 
       function relativeTime(timestamp) {
-        if (!timestamp) {
-          return TEXT.lastRefreshNever;
-        }
+        if (!timestamp) return "最后刷新：尚未刷新";
         const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
-        return seconds < 2 ? TEXT.lastRefreshNow : TEXT.lastRefreshAgo(seconds);
+        return seconds < 2 ? "最后刷新：刚刚" : `最后刷新：${seconds} 秒前`;
       }
 
-      function updateLastUpdated() {
-        el.lastUpdated.textContent = relativeTime(state.lastFetchedAt);
+      function serverStatus(server) {
+        if (server.pending_auth_url) return { label: "待认证", dot: "\u25cf", className: "pending" };
+        if (server.online === true) return { label: "在线", dot: "\u25cf", className: "online" };
+        if (server.online === false) return { label: "离线", dot: "\u25cb", className: "offline" };
+        return { label: "未检测", dot: "\u25cb", className: "offline" };
       }
 
       function filteredServers() {
-        if (!state.data) {
-          return [];
-        }
+        if (!state.data) return [];
         const keyword = state.search.trim().toLowerCase();
         return state.data.servers.filter((server) => {
-          const tagOk = !state.activeTag || (server.tags || []).includes(state.activeTag);
-          const haystack = `${server.hostname} ${server.note || ""}`.toLowerCase();
-          const keywordOk = !keyword || haystack.includes(keyword);
-          return tagOk && keywordOk;
+          const haystack = `${server.display_name} ${server.host || ""} ${server.note || ""}`.toLowerCase();
+          const matchesKeyword = !keyword || haystack.includes(keyword);
+          const matchesTag = !state.activeTag || (server.tags || []).includes(state.activeTag);
+          return matchesKeyword && matchesTag;
         });
       }
 
       function renderSummary(servers) {
         const all = state.data.servers;
-        const online = all.filter((server) => server.online).length;
-        const filteredOnline = servers.filter((server) => server.online).length;
-        el.summaryTotal.textContent = TEXT.totalServers(all.length);
-        el.summaryOnline.textContent = servers.length === all.length
-          ? TEXT.onlineServers(online)
-          : TEXT.filteredServers(servers.length, filteredOnline);
-        el.summaryBind.textContent = TEXT.bindAddress(state.data.bind_address, state.data.port);
-        el.jumpboxHint.textContent = `jumpbox: ${state.data.jumpbox_user}@${state.data.jumpbox_host}`;
+        const online = all.filter((item) => item.online === true).length;
+        const filteredOnline = servers.filter((item) => item.online === true).length;
+        el.summaryTotal.textContent = `总计 ${all.length} 台服务器`;
+        el.summaryOnline.textContent = servers.length === all.length ? `在线 ${online} 台` : `当前结果 ${servers.length} 台，其中在线 ${filteredOnline} 台`;
+        el.summaryBind.textContent = `面板地址 ${state.data.bind_address}:${state.data.port}`;
+        el.jumpboxHint.textContent = `连接地址 ${state.data.jumpbox_user}@${state.data.jumpbox_host}`;
         el.pageTitle.textContent = state.data.title;
-        el.pageSubtitle.textContent = TEXT.subtitle(state.data.subtitle, all.length, online);
+        el.pageSubtitle.textContent = `${state.data.subtitle} · 共 ${all.length} 台服务器 · ${online} 台在线`;
+        el.lastUpdated.textContent = relativeTime(state.lastFetchedAt);
       }
 
       function renderTags() {
         const counts = new Map([["", state.data.servers.length]]);
         state.data.servers.forEach((server) => {
-          (server.tags || []).forEach((tag) => {
-            counts.set(tag, (counts.get(tag) || 0) + 1);
-          });
+          (server.tags || []).forEach((tag) => counts.set(tag, (counts.get(tag) || 0) + 1));
         });
-
         const tags = ["", ...Array.from(counts.keys()).filter(Boolean).sort()];
         el.tagFilters.innerHTML = tags.map((tag) => {
-          const active = state.activeTag === tag;
-          const label = tag ? `${tag} ${counts.get(tag)}` : TEXT.allTag(counts.get(""));
-          return `<button class="tag-button ${active ? "active" : ""}" type="button" data-tag="${escapeHtml(tag)}">${escapeHtml(label)}</button>`;
+          const active = tag === state.activeTag;
+          const label = tag ? `${tag} ${counts.get(tag)}` : `全部 ${counts.get("")}`;
+          return `<button class="chip ${active ? "active" : ""}" type="button" data-tag="${escapeHtml(tag)}">${escapeHtml(label)}</button>`;
         }).join("");
-
         el.tagFilters.querySelectorAll("[data-tag]").forEach((button) => {
           button.addEventListener("click", () => {
             const tag = button.getAttribute("data-tag") || "";
@@ -368,239 +286,354 @@
       }
 
       function renderAuthBanner() {
-        const entries = Object.entries(state.data.pending_auth || {});
-        if (!entries.length) {
+        const pending = Object.entries(state.data.pending_auth || {});
+        if (!pending.length) {
           el.authBanner.classList.remove("visible");
           el.authList.innerHTML = "";
           return;
         }
-
         el.authBanner.classList.add("visible");
-        el.authList.innerHTML = entries.map(([hostname, url]) => `
-          <article class="auth-item">
-            <div class="row between wrap center">
-              <div>
-                <strong>${escapeHtml(hostname)}</strong>
-                <div class="help">${TEXT.pendingAuthHelp}</div>
-              </div>
-              <div class="row wrap">
-                <a class="auth-button primary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${TEXT.openAuth}</a>
-                <button class="auth-button" type="button" data-clear-auth="${escapeHtml(hostname)}">${TEXT.authDone}</button>
-              </div>
+        el.authList.innerHTML = pending.map(([hostname, url]) => `
+          <div class="auth-item">
+            <div>
+              <div style="font-weight:600;">${escapeHtml(hostname)}</div>
+              <div class="hint">检测到待处理认证链接</div>
             </div>
-          </article>
+            <div class="server-actions">
+              <a class="button primary" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">打开认证链接</a>
+              <button class="button" type="button" data-clear-auth="${escapeHtml(hostname)}">已完成</button>
+            </div>
+          </div>
         `).join("");
-
         el.authList.querySelectorAll("[data-clear-auth]").forEach((button) => {
           button.addEventListener("click", async () => {
-            const hostname = button.getAttribute("data-clear-auth");
-            button.disabled = true;
-            try {
-              await fetch("/api/clear-auth", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ hostname }),
-              });
-            } catch (error) {
-              console.error("clear auth failed", error);
-            }
+            await fetch("/api/clear-auth", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ hostname: button.getAttribute("data-clear-auth") }),
+            });
             await loadServers(true);
           });
         });
       }
 
-      function renderCards(servers) {
-        el.cards.innerHTML = servers.map((server, index) => {
-          const meta = statusMeta(server);
-          const tags = server.tags && server.tags.length
-            ? server.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")
-            : `<span class="chip">${TEXT.noTag}</span>`;
-          const note = server.note ? escapeHtml(server.note) : (server.online ? TEXT.noNote : TEXT.statusOffline);
-          const command = buildCommand(server.hostname, server.user);
-
+      function renderRows(servers) {
+        el.serverRows.innerHTML = servers.map((server) => {
+          const status = serverStatus(server);
+          const sourceClass = server.source === "tailscale" ? "tailscale" : "manual";
+          const tagHtml = (server.tags || []).length ? server.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("") : '<span class="chip">无标签</span>';
+          const sessionText = server.tmux_session_exists ? "已有 tmux 会话" : `tmux: ${escapeHtml(server.session_name || server.hostname)}`;
+          const addressText = server.source === "tailscale" ? `${escapeHtml(server.ip)} · Tailscale` : `${escapeHtml(server.host)}:${escapeHtml(server.port)} · ${server.network === "public" ? "公网" : "内网"}`;
           return `
-            <article class="card ${server.online ? "" : "offline"}">
-              <div class="card-head">
-                <div>
-                  <div class="hostname-line">
-                    <div class="hostname">${escapeHtml(server.hostname)}</div>
-                    ${server.tmux_session_exists ? `<span class="session-badge">${TEXT.activeSession}</span>` : ""}
-                  </div>
-                  <div class="meta">${escapeHtml(server.ip)} · ${note}</div>
+            <div class="server-row">
+              <div class="server-name">
+                <div class="server-primary">
+                  <span class="server-title">${escapeHtml(server.display_name)}</span>
+                  <span class="source-badge ${sourceClass}">${server.source === "tailscale" ? "Tailscale" : "手动"}</span>
                 </div>
-                <div class="status-pill">
-                  <span class="dot ${meta.className}">${meta.dot}</span>
-                  <span>${meta.label}</span>
-                </div>
+                <div class="hint">${escapeHtml(server.note || "无备注")}</div>
+                <div class="chips">${tagHtml}</div>
               </div>
-              <div class="row wrap">${tags}</div>
-              <div class="field">
-                <label for="user-${index}">${TEXT.userLabel}</label>
-                <input class="user-input" id="user-${index}" data-user-input="${escapeHtml(server.hostname)}" type="text" value="${escapeHtml(server.user)}" autocomplete="off" spellcheck="false">
+              <div><div>${addressText}</div><div class="hint">${escapeHtml(server.os || "unknown")}</div></div>
+              <div class="status"><span class="dot ${status.className}">${status.dot}</span><span>${status.label}</span></div>
+              <div>
+                <input class="input" data-user-input="${escapeHtml(server.id)}" type="text" value="${escapeHtml(server.user)}">
+                <div class="hint" style="margin-top:6px;">${sessionText}</div>
               </div>
-              <div class="command-box">
-                <div class="help">${TEXT.copyHelp}</div>
-                <code data-command="${escapeHtml(server.hostname)}">${escapeHtml(command)}</code>
+              <div><div class="command" data-command="${escapeHtml(server.id)}">${escapeHtml(server.command)}</div></div>
+              <div class="server-actions">
+                <button class="button" type="button" data-copy="${escapeHtml(server.id)}">复制</button>
+                <button class="button primary" type="button" data-webssh="${escapeHtml(server.id)}">WebSSH</button>
+                ${server.source === "manual" ? `<button class="button" type="button" data-edit-manual="${escapeHtml(server.raw_id)}">编辑</button>` : ""}
+                ${server.source === "manual" ? `<button class="button danger" type="button" data-delete-manual="${escapeHtml(server.raw_id)}">删除</button>` : ""}
               </div>
-              <div class="row between wrap center card-actions">
-                <div class="help">${TEXT.systemPrefix}${escapeHtml(server.os || "unknown")}</div>
-                <button class="copy-button primary" type="button" data-copy="${escapeHtml(server.hostname)}">${TEXT.copy}</button>
-              </div>
-            </article>
+            </div>
           `;
         }).join("");
 
-        el.cards.querySelectorAll("[data-user-input]").forEach((input) => {
+        el.serverRows.querySelectorAll("[data-user-input]").forEach((input) => {
           input.addEventListener("input", () => {
-            const hostname = input.getAttribute("data-user-input");
-            const code = el.cards.querySelector(`[data-command="${CSS.escape(hostname)}"]`);
-            if (!code) {
-              return;
+            const id = input.getAttribute("data-user-input");
+            const server = state.data.servers.find((item) => item.id === id);
+            const code = el.serverRows.querySelector(`[data-command="${CSS.escape(id)}"]`);
+            if (!server || !code) return;
+            const user = input.value.trim() || state.data.default_target_user;
+            if (server.source === "tailscale") {
+              const sessionName = `${state.data.tmux_prefix}${server.hostname}`;
+              code.textContent = `ssh -t ${state.data.jumpbox_user}@${state.data.jumpbox_host} "tmux new-session -A -s '${sessionName.replace(/'/g, "'\\''")}' bastion-ssh '${server.hostname.replace(/'/g, "'\\''")}' '${user.replace(/'/g, "'\\''")}'"`;
+            } else {
+              const sessionName = server.session_name || server.hostname;
+              code.textContent = `ssh -t -p ${server.port} ${user}@${server.host} "tmux new-session -A -s '${String(sessionName).replace(/'/g, "'\\''")}'"`;
             }
-            const targetUser = input.value.trim() || state.data.default_target_user;
-            code.textContent = buildCommand(hostname, targetUser);
           });
         });
 
-        el.cards.querySelectorAll("[data-copy]").forEach((button) => {
+        el.serverRows.querySelectorAll("[data-copy]").forEach((button) => {
           button.addEventListener("click", async () => {
-            const hostname = button.getAttribute("data-copy");
-            const code = el.cards.querySelector(`[data-command="${CSS.escape(hostname)}"]`);
-            if (!code) {
-              return;
-            }
-            try {
-              await navigator.clipboard.writeText(code.textContent || "");
-              button.classList.add("is-copied");
-              button.textContent = TEXT.copied;
-              if (state.copyTimers.has(button)) {
-                clearTimeout(state.copyTimers.get(button));
-              }
-              const timer = window.setTimeout(() => {
-                button.classList.remove("is-copied");
-                button.textContent = TEXT.copy;
-                state.copyTimers.delete(button);
-              }, 2000);
-              state.copyTimers.set(button, timer);
-            } catch (error) {
-              console.error("copy failed", error);
-              button.textContent = TEXT.copyFailed;
-              window.setTimeout(() => {
-                button.textContent = TEXT.copy;
-              }, 2000);
-            }
+            const id = button.getAttribute("data-copy");
+            const code = el.serverRows.querySelector(`[data-command="${CSS.escape(id)}"]`);
+            if (!code) return;
+            await navigator.clipboard.writeText(code.textContent || "");
+            button.textContent = "已复制";
+            window.setTimeout(() => { button.textContent = "复制"; }, 1600);
           });
         });
-      }
 
-      function renderEmptyState(servers) {
-        if (state.data.servers.length === 0) {
-          el.emptyState.textContent = TEXT.emptyNetwork;
-        } else if (servers.length === 0) {
-          el.emptyState.textContent = TEXT.emptySearch;
-        } else {
-          el.emptyState.textContent = "";
-        }
+        el.serverRows.querySelectorAll("[data-webssh]").forEach((button) => {
+          button.addEventListener("click", () => openTerminal(button.getAttribute("data-webssh")));
+        });
+
+        el.serverRows.querySelectorAll("[data-edit-manual]").forEach((button) => {
+          button.addEventListener("click", () => loadManualIntoForm(button.getAttribute("data-edit-manual")));
+        });
+
+        el.serverRows.querySelectorAll("[data-delete-manual]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            const rawId = button.getAttribute("data-delete-manual");
+            if (!confirm(`删除手动服务器 ${rawId} ?`)) return;
+            await fetch(`/api/manual-servers/${encodeURIComponent(rawId)}`, { method: "DELETE" });
+            await loadManualServers();
+            await loadServers(true);
+          });
+        });
       }
 
       function render() {
-        if (!state.data) {
-          return;
-        }
+        if (!state.data) return;
         const servers = filteredServers();
         renderSummary(servers);
         renderTags();
         renderAuthBanner();
-        renderEmptyState(servers);
-        updateLastUpdated();
-        el.loadingState.classList.add("hidden");
-
         if (servers.length) {
-          el.cards.classList.remove("hidden");
-          el.emptyState.classList.add("hidden");
-          renderCards(servers);
+          el.emptyState.style.display = "none";
+          renderRows(servers);
         } else {
-          el.cards.classList.add("hidden");
-          el.cards.innerHTML = "";
-          el.emptyState.classList.remove("hidden");
-        }
-      }
-
-      function scheduleRefresh() {
-        if (state.refreshTimer) {
-          clearInterval(state.refreshTimer);
-        }
-        const interval = Number(state.data.refresh_interval || fallbackInterval);
-        if (interval > 0) {
-          state.refreshTimer = window.setInterval(() => {
-            loadServers(true);
-          }, interval * 1000);
+          el.serverRows.innerHTML = "";
+          el.emptyState.style.display = "";
+          el.emptyState.textContent = state.data.servers.length ? "未找到匹配的服务器" : "当前没有可展示的服务器";
         }
       }
 
       async function loadServers(silent = false) {
-        if (!silent && !state.data) {
-          el.loadingState.classList.remove("hidden");
-        }
         try {
           const response = await fetch("/api/servers", { cache: "no-store" });
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-          }
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
           state.data = await response.json();
           state.lastFetchedAt = Date.now();
+          if (!silent) {
+            el.settingJumpboxHost.value = state.data.settings.jumpbox_host;
+            el.settingJumpboxUser.value = state.data.settings.jumpbox_user;
+          }
           render();
           scheduleRefresh();
         } catch (error) {
-          console.error("load servers failed", error);
-          if (!state.data) {
-            el.loadingState.classList.add("hidden");
-            el.cards.classList.add("hidden");
-            el.emptyState.classList.remove("hidden");
-            el.emptyState.textContent = TEXT.loadFailed;
-          }
+          console.error(error);
+          el.emptyState.style.display = "";
+          el.emptyState.textContent = "读取节点失败，请检查服务状态";
         }
       }
 
+      function scheduleRefresh() {
+        if (state.refreshTimer) clearInterval(state.refreshTimer);
+        const interval = Number(state.data?.refresh_interval || fallbackInterval);
+        if (interval > 0) {
+          state.refreshTimer = window.setInterval(() => loadServers(true), interval * 1000);
+        }
+      }
+
+      async function loadManualServers() {
+        const response = await fetch("/api/manual-servers", { cache: "no-store" });
+        const payload = await response.json();
+        state.manualServers = payload.servers || [];
+        el.manualList.innerHTML = state.manualServers.map((server) => `
+          <div class="manual-item">
+            <div style="font-weight:600;">${escapeHtml(server.display_name)}</div>
+            <div class="hint">${escapeHtml(server.host)}:${escapeHtml(server.port)} · ${server.network === "public" ? "公网" : "内网"}</div>
+            <div class="hint">${escapeHtml(server.note || "无备注")}</div>
+          </div>
+        `).join("");
+      }
+
+      function resetManualForm() {
+        state.editingManualId = "";
+        el.manualName.value = "";
+        el.manualHost.value = "";
+        el.manualUser.value = "root";
+        el.manualPort.value = "22";
+        el.manualNetwork.value = "private";
+        el.manualSession.value = "";
+        el.manualTags.value = "";
+        el.manualNote.value = "";
+      }
+
+      function loadManualIntoForm(rawId) {
+        const server = state.manualServers.find((item) => item.raw_id === rawId);
+        if (!server) return;
+        state.editingManualId = rawId;
+        el.manualName.value = server.display_name;
+        el.manualHost.value = server.host;
+        el.manualUser.value = server.user;
+        el.manualPort.value = server.port;
+        el.manualNetwork.value = server.network;
+        el.manualSession.value = server.session_name || "";
+        el.manualTags.value = (server.tags || []).join(", ");
+        el.manualNote.value = server.note || "";
+      }
+
+      async function saveManualServer() {
+        const payload = {
+          display_name: el.manualName.value.trim(),
+          host: el.manualHost.value.trim(),
+          user: el.manualUser.value.trim() || "root",
+          port: Number(el.manualPort.value || 22),
+          network: el.manualNetwork.value,
+          session_name: el.manualSession.value.trim(),
+          tags: el.manualTags.value.split(",").map((item) => item.trim()).filter(Boolean),
+          note: el.manualNote.value.trim(),
+        };
+        const url = state.editingManualId ? `/api/manual-servers/${encodeURIComponent(state.editingManualId)}` : "/api/manual-servers";
+        const method = state.editingManualId ? "PUT" : "POST";
+        const response = await fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          alert(data.error || "保存失败");
+          return;
+        }
+        resetManualForm();
+        await loadManualServers();
+        await loadServers(true);
+      }
+
+      async function saveSettings() {
+        await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jumpbox_host: el.settingJumpboxHost.value.trim() || "auto",
+            jumpbox_user: el.settingJumpboxUser.value.trim() || "root",
+          }),
+        });
+        await loadServers(true);
+      }
+
+      async function openTerminal(serverId) {
+        const server = state.data.servers.find((item) => item.id === serverId);
+        if (!server) return;
+        const response = await fetch("/api/terminal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ server_id: serverId }),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+          alert(payload.error || "无法打开 WebSSH");
+          return;
+        }
+        state.terminalSessionId = payload.session_id;
+        el.terminalTitle.textContent = `WebSSH · ${server.display_name}`;
+        el.terminalCommand.textContent = payload.command;
+        el.terminalScreen.textContent = payload.output || "";
+        el.terminalWrap.classList.add("visible");
+        startTerminalPolling();
+      }
+
+      async function pollTerminal() {
+        if (!state.terminalSessionId) return;
+        const response = await fetch(`/api/terminal/${encodeURIComponent(state.terminalSessionId)}`, { cache: "no-store" });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) return;
+        if (payload.output) {
+          el.terminalScreen.textContent += payload.output;
+          el.terminalScreen.scrollTop = el.terminalScreen.scrollHeight;
+        }
+        if (payload.closed) stopTerminalPolling();
+      }
+
+      function startTerminalPolling() {
+        stopTerminalPolling();
+        state.terminalPoller = window.setInterval(pollTerminal, 500);
+      }
+
+      function stopTerminalPolling() {
+        if (state.terminalPoller) {
+          clearInterval(state.terminalPoller);
+          state.terminalPoller = null;
+        }
+      }
+
+      async function sendTerminalInput(data) {
+        if (!state.terminalSessionId) return;
+        await fetch(`/api/terminal/${encodeURIComponent(state.terminalSessionId)}/input`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data }),
+        });
+        await pollTerminal();
+      }
+
+      async function closeTerminal() {
+        if (state.terminalSessionId) {
+          await fetch(`/api/terminal/${encodeURIComponent(state.terminalSessionId)}`, { method: "DELETE" });
+        }
+        state.terminalSessionId = "";
+        stopTerminalPolling();
+        el.terminalWrap.classList.remove("visible");
+        el.terminalScreen.textContent = "";
+      }
+
       function bindEvents() {
+        el.refreshButton.addEventListener("click", () => loadServers(true));
         el.searchInput.addEventListener("input", () => {
           state.search = el.searchInput.value;
           render();
         });
-
-        el.refreshButton.addEventListener("click", () => {
-          loadServers(true);
+        el.settingsButton.addEventListener("click", async () => {
+          await loadManualServers();
+          el.settingsOverlay.classList.add("visible");
         });
-
-        document.addEventListener("keydown", (event) => {
-          if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-            if (event.key === "Escape" && event.target === el.searchInput) {
-              el.searchInput.value = "";
-              state.search = "";
-              render();
-              event.preventDefault();
-            }
-            return;
+        el.closeSettings.addEventListener("click", () => el.settingsOverlay.classList.remove("visible"));
+        el.saveSettings.addEventListener("click", saveSettings);
+        el.saveManual.addEventListener("click", saveManualServer);
+        el.resetManual.addEventListener("click", resetManualForm);
+        el.closeTerminal.addEventListener("click", closeTerminal);
+        el.terminalSend.addEventListener("click", async () => {
+          const value = el.terminalInput.value;
+          if (!value) return;
+          el.terminalInput.value = "";
+          await sendTerminalInput(value);
+        });
+        el.terminalEnter.addEventListener("click", () => sendTerminalInput("\n"));
+        el.terminalCtrlc.addEventListener("click", () => sendTerminalInput("\u0003"));
+        el.terminalInput.addEventListener("keydown", async (event) => {
+          if (event.key === "Enter") {
+            const value = el.terminalInput.value;
+            el.terminalInput.value = "";
+            await sendTerminalInput(`${value}\n`);
+            event.preventDefault();
           }
-
+        });
+        document.addEventListener("keydown", (event) => {
+          if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
           if (event.key === "/") {
             event.preventDefault();
             el.searchInput.focus();
             el.searchInput.select();
-          } else if (event.key === "Escape") {
-            el.searchInput.value = "";
-            state.search = "";
-            render();
           } else if (event.key === "r" || event.key === "R") {
             event.preventDefault();
             loadServers(true);
           }
         });
-
-        state.tickTimer = window.setInterval(updateLastUpdated, 1000);
+        state.tickTimer = window.setInterval(() => {
+          el.lastUpdated.textContent = relativeTime(state.lastFetchedAt);
+        }, 1000);
       }
 
       bindEvents();
+      resetManualForm();
       loadServers(false);
     })();
   </script>
