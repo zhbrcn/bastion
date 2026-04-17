@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
 import pty
+import re
 import select
 import shlex
 import signal
@@ -14,6 +16,7 @@ import struct
 import subprocess
 import threading
 import time
+import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -47,6 +50,7 @@ sock = Sock(app)
 _PROBE_CACHE_SECONDS = 30.0
 _PROBE_CACHE: dict[tuple[str, int], tuple[float, bool]] = {}
 _PROBE_CACHE_LOCK = threading.Lock()
+_WINDOWS_INVALID_FILENAME = re.compile(r'[\\/:*?"<>|]+')
 
 
 def _resolve_bind_address(settings: dict[str, Any]) -> str:
@@ -323,6 +327,47 @@ def _stream_terminal_output(ws: Any, master_fd: int, process: subprocess.Popen[s
         pass
 
 
+def _sanitize_windows_filename(name: str) -> str:
+    """Return a Windows-safe .bat base name."""
+    sanitized = _WINDOWS_INVALID_FILENAME.sub("_", name).strip(" .")
+    return sanitized or "server"
+
+
+def _windows_batch_body(server: dict[str, Any], settings: dict[str, Any]) -> str:
+    """Build one Windows batch shortcut."""
+    session_name = server.get("session_name") or server["hostname"]
+
+    if server["source"] == "tailscale":
+        host = f"{settings.get('jumpbox', {}).get('ssh_user', 'root')}@{_resolve_jumpbox_host(settings)}"
+        remote_command = (
+            f"tmux new-session -A -s {shlex.quote(session_name)} "
+            f"bastion-ssh {shlex.quote(server['hostname'])} {shlex.quote(server['user'])}"
+        )
+        ssh_command = f'ssh -t {host} "{remote_command}"'
+    else:
+        host = f"{server['user']}@{server['host']}"
+        port = int(server.get("port", 22))
+        remote_command = f"tmux new-session -A -s {shlex.quote(session_name)}"
+        ssh_command = f'ssh -t -p {port} {host} "{remote_command}"'
+
+    return "\r\n".join(
+        [
+            "@echo off",
+            "setlocal",
+            f"set \"TITLE={server['display_name']}\"",
+            f"set \"SSH_COMMAND={ssh_command}\"",
+            "where wt.exe >nul 2>nul",
+            "if %ERRORLEVEL%==0 (",
+            "  wt.exe new-tab cmd /k \"%SSH_COMMAND%\"",
+            ") else (",
+            "  %SSH_COMMAND%",
+            ")",
+            "endlocal",
+            "",
+        ]
+    )
+
+
 @sock.route("/ws/terminal/<path:server_id>")
 def ws_terminal(ws: Any, server_id: str) -> None:
     """Run a full interactive terminal session over websocket."""
@@ -573,6 +618,29 @@ def api_ssh_config() -> Response:
         "\n".join(lines),
         mimetype="text/plain",
         headers={"Content-Disposition": "attachment; filename=bastion-ssh-config"},
+    )
+
+
+@app.route("/api/batch-download")
+def api_batch_download() -> Response:
+    """Download Windows batch shortcuts for all visible servers."""
+    payload = _json_payload()
+    settings = load_settings()
+    archive = io.BytesIO()
+
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for server in payload["servers"]:
+            filename = f"{_sanitize_windows_filename(server['display_name'])}.bat"
+            zf.writestr(filename, _windows_batch_body(server, settings))
+
+    archive.seek(0)
+    return Response(
+        archive.getvalue(),
+        mimetype="application/zip",
+        headers={
+            "Content-Type": "application/zip",
+            "Content-Disposition": "attachment; filename=bastion-shortcuts.zip",
+        },
     )
 
 

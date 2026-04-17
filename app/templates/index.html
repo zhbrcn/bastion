@@ -44,6 +44,7 @@
     }
 
     * { box-sizing: border-box; }
+
     html, body {
       margin: 0;
       min-height: 100%;
@@ -55,7 +56,8 @@
     body { line-height: 1.5; }
     button, input, select, textarea { font: inherit; }
     button { cursor: pointer; }
-    a { color: inherit; }
+    a { color: inherit; text-decoration: none; }
+    h1, h2, h3, p { margin: 0; }
 
     .page {
       max-width: 1440px;
@@ -63,8 +65,7 @@
       padding: 24px;
     }
 
-    .topbar, .toolbar, .summary, .drawer-head, .terminal-head, .server-card-head, .server-card-meta,
-    .server-card-actions, .manual-item-head, .auth-item, .settings-actions {
+    .topbar, .toolbar, .summary, .drawer-head, .terminal-head, .auth-item, .settings-actions {
       display: flex;
       gap: 12px;
       align-items: center;
@@ -73,7 +74,6 @@
     }
 
     .topbar { margin-bottom: 16px; }
-    h1, h2, h3, p { margin: 0; }
     .subtitle, .hint, .muted { color: var(--muted); }
     .subtitle { margin-top: 6px; font-size: 14px; }
 
@@ -131,8 +131,13 @@
       gap: 16px;
     }
 
-    .chips { display: flex; gap: 8px; flex-wrap: wrap; }
-    .chip, .source-badge {
+    .chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
       display: inline-flex;
       align-items: center;
       min-height: 28px;
@@ -149,10 +154,6 @@
       color: var(--primary);
       background: rgba(88, 166, 255, 0.12);
     }
-
-    .source-badge.tailscale { color: var(--primary); }
-    .source-badge.manual.public { color: var(--warning); }
-    .source-badge.manual.private { color: #a371f7; }
 
     .auth-banner, .server-grid, .drawer, .terminal-panel, .empty {
       border: 1px solid var(--border);
@@ -190,64 +191,105 @@
       padding: 16px;
     }
 
-    .server-title {
+    .server-card.offline {
+      opacity: 0.55;
+      transition: opacity 0.2s;
+    }
+
+    .server-card.offline:hover {
+      opacity: 1;
+    }
+
+    .card-header {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       align-items: center;
-      min-width: 0;
       flex-wrap: wrap;
     }
 
-    .server-title strong {
+    .card-title {
       font-size: 16px;
       word-break: break-word;
     }
 
-    .server-card-meta {
-      align-items: flex-start;
-      gap: 10px 14px;
-    }
-
-    .server-address {
-      font-family: var(--font-code);
-      font-size: 12px;
-      word-break: break-word;
-    }
-
-    .server-note {
-      font-size: 13px;
-      color: var(--muted);
-      min-height: 20px;
-    }
-
-    .server-tags {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: var(--muted);
-      display: inline-block;
-      flex: 0 0 auto;
-    }
-
-    .dot.online { background: var(--success); }
-    .dot.offline { background: var(--muted); }
-    .dot.pending { background: var(--warning); }
-
-    .status-label {
+    .badge {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      padding: 2px 8px;
+      min-height: 22px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--panel-2);
       color: var(--muted);
+      font-size: 12px;
+    }
+
+    .badge.source-tailscale {
+      color: var(--primary);
+      border-color: rgba(88, 166, 255, 0.35);
+    }
+
+    .badge.source-manual {
+      color: var(--warning);
+      border-color: rgba(210, 153, 34, 0.35);
+    }
+
+    .badge.active {
+      color: var(--success);
+      border-color: rgba(63, 185, 80, 0.35);
+    }
+
+    .badge.tag {
+      color: var(--text);
+    }
+
+    .card-meta {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
       font-size: 13px;
+      color: var(--muted);
+    }
+
+    .card-meta .sep {
+      color: var(--border);
+    }
+
+    .editable {
+      border-bottom: 1px dashed var(--muted);
+      cursor: pointer;
+      color: var(--primary);
+      padding: 0 2px;
+    }
+
+    .editable:hover {
+      background: rgba(88, 166, 255, 0.08);
+      border-bottom-color: var(--primary);
+    }
+
+    .editable-input {
+      border: 0;
+      border-bottom: 1px solid var(--primary);
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      padding: 0 2px;
+      min-width: 60px;
+    }
+
+    .editable-input:focus {
+      outline: none;
+    }
+
+    .card-footer {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
     }
 
     .command {
+      flex: 1;
       padding: 12px;
       background: var(--panel-3);
       font-family: var(--font-code);
@@ -262,35 +304,18 @@
       box-shadow: 0 0 0 3px rgba(63, 185, 80, 0.18);
     }
 
-    .settings-toggle {
-      border: 0;
-      padding: 0;
-      background: transparent;
-      color: var(--primary);
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--muted);
+      display: inline-block;
+      flex: 0 0 auto;
     }
 
-    details.settings-box {
-      border-top: 1px dashed var(--border);
-      padding-top: 12px;
-    }
-
-    details.settings-box summary {
-      list-style: none;
-      cursor: pointer;
-      color: var(--primary);
-      user-select: none;
-    }
-
-    details.settings-box summary::-webkit-details-marker {
-      display: none;
-    }
-
-    .settings-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 10px;
-      margin-top: 12px;
-    }
+    .dot.online { background: var(--success); }
+    .dot.offline { background: var(--muted); }
+    .dot.pending { background: var(--warning); }
 
     .terminal-wrap, .overlay {
       position: fixed;
@@ -334,10 +359,6 @@
       padding: 12px;
     }
 
-    .manual-item-head {
-      margin-bottom: 8px;
-    }
-
     .terminal-wrap {
       align-items: center;
       justify-content: center;
@@ -376,19 +397,22 @@
       color: var(--muted);
     }
 
-    .webssh-button.mobile-hidden {
+    .webssh-btn {
       display: inline-flex;
     }
 
     @media (max-width: 980px) {
       .page { padding: 16px; }
-      .grid-2, .settings-grid { grid-template-columns: 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
       .summary { gap: 10px; }
       .terminal-panel { width: 100vw; height: 100vh; border-radius: 0; }
+      .card-footer {
+        flex-direction: column;
+      }
     }
 
     @media (max-width: 767px) {
-      .webssh-button.mobile-hidden { display: none !important; }
+      .webssh-btn { display: none; }
     }
   </style>
 </head>
@@ -400,7 +424,6 @@
         <div class="subtitle" id="page-subtitle">{{ subtitle }}</div>
       </div>
       <div class="settings-actions">
-        <a class="button" href="/api/ssh-config">下载 SSH Config</a>
         <button class="button" id="refresh-button" type="button">刷新</button>
         <button class="button primary" id="settings-button" type="button">管理</button>
       </div>
@@ -421,7 +444,7 @@
 
     <section class="toolbar">
       <div class="chips" id="tag-filters"></div>
-      <input class="input" id="search-input" type="search" placeholder="搜索名称、地址、备注，按 / 快速聚焦" style="width:min(360px,100vw);">
+      <input class="input" id="search-input" type="search" placeholder="搜索名称、地址、标签，按 / 快速聚焦" style="width:min(360px,100vw);">
     </section>
 
     <section class="server-grid" id="server-grid"></section>
@@ -450,6 +473,17 @@
         </div>
         <div class="settings-actions">
           <button class="button primary" id="save-settings" type="button">保存设置</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <div style="font-weight: 600;">Windows 一键连接</div>
+        <div class="hint">
+          下载包含所有服务器的 .bat 文件包。解压后双击即可从 Windows Terminal
+          启动连接并自动进入 tmux 会话。需本机已安装 Windows Terminal 或 OpenSSH 客户端。
+        </div>
+        <div class="settings-actions">
+          <a class="button primary" href="/api/batch-download" download>下载 .bat 文件包</a>
         </div>
       </section>
 
@@ -539,6 +573,7 @@
         terminalInstance: null,
         terminalFitAddon: null,
         terminalResizeHandler: null,
+        cardEdits: {},
       };
 
       const el = {
@@ -607,15 +642,11 @@
         return { label: "未知", className: "offline" };
       }
 
-      function canUseWebssh() {
-        return window.innerWidth >= 768;
-      }
-
       function filteredServers() {
         if (!state.data) return [];
         const keyword = state.search.trim().toLowerCase();
         return state.data.servers.filter((server) => {
-          const haystack = `${server.display_name} ${server.host || ""} ${server.note || ""} ${(server.tags || []).join(" ")}`.toLowerCase();
+          const haystack = `${server.display_name} ${server.host || ""} ${(server.tags || []).join(" ")}`.toLowerCase();
           const matchesKeyword = !keyword || haystack.includes(keyword);
           const matchesTag = !state.activeTag || (server.tags || []).includes(state.activeTag);
           return matchesKeyword && matchesTag;
@@ -624,19 +655,45 @@
 
       function getSourceLabel(server) {
         if (server.source === "tailscale") return "Tailscale";
-        return server.network === "public" ? "手动 / 公网" : "手动 / 内网";
+        return server.network === "public" ? "公网" : "内网";
+      }
+
+      function getModeLabel(mode) {
+        if (mode === "new") return "新建会话";
+        if (mode === "direct") return "直接连接";
+        return "恢复会话";
+      }
+
+      function getCardEdit(serverId) {
+        const server = state.data?.servers.find((item) => item.id === serverId);
+        if (!server) return { user: "", mode: "resume", session: "" };
+        return {
+          user: state.cardEdits[serverId]?.user ?? server.user ?? state.data.default_target_user,
+          mode: state.cardEdits[serverId]?.mode ?? "resume",
+          session: state.cardEdits[serverId]?.session ?? server.session_name ?? server.hostname,
+        };
+      }
+
+      function saveCardEdit(serverId, type, value) {
+        const current = state.cardEdits[serverId] || {};
+        if (type === "user") current.user = value;
+        if (type === "mode") current.mode = value || "resume";
+        if (type === "session") current.session = value;
+        state.cardEdits[serverId] = current;
+      }
+
+      function shouldShowSession(mode) {
+        return mode === "new";
       }
 
       function getCommandForServer(serverId) {
         const server = state.data?.servers.find((item) => item.id === serverId);
         if (!server) return "";
 
-        const userInput = el.serverGrid.querySelector(`[data-user-input="${CSS.escape(serverId)}"]`);
-        const modeInput = el.serverGrid.querySelector(`[data-session-mode="${CSS.escape(serverId)}"]`);
-        const sessionInput = el.serverGrid.querySelector(`[data-session-name="${CSS.escape(serverId)}"]`);
-        const user = (userInput?.value || server.user || state.data.default_target_user).trim() || state.data.default_target_user;
-        const mode = modeInput?.value || "resume";
-        const sessionName = (sessionInput?.value || server.session_name || server.hostname).trim() || server.hostname;
+        const edit = getCardEdit(serverId);
+        const user = (edit.user || state.data.default_target_user).trim() || state.data.default_target_user;
+        const mode = edit.mode || "resume";
+        const sessionName = (edit.session || server.session_name || server.hostname).trim() || server.hostname;
 
         if (server.source === "tailscale") {
           if (mode === "direct") {
@@ -657,6 +714,16 @@
         const commandEl = el.serverGrid.querySelector(`[data-command="${CSS.escape(serverId)}"]`);
         if (!commandEl) return;
         commandEl.textContent = getCommandForServer(serverId);
+      }
+
+      function updateModeExtraVisibility(serverId) {
+        const mode = getCardEdit(serverId).mode || "resume";
+        const show = shouldShowSession(mode);
+        const card = el.serverGrid.querySelector(`[data-server-card="${CSS.escape(serverId)}"]`);
+        if (!card) return;
+        card.querySelectorAll(".mode-extra").forEach((node) => {
+          node.style.display = show ? "inline" : "none";
+        });
       }
 
       async function copyCommand(commandEl) {
@@ -740,82 +807,44 @@
       function renderCards(servers) {
         el.serverGrid.innerHTML = servers.map((server) => {
           const status = serverStatus(server);
-          const sourceClass = server.source === "tailscale"
-            ? "tailscale"
-            : `manual ${server.network === "public" ? "public" : "private"}`;
-          const tags = (server.tags || []).length
-            ? server.tags.map((tag) => `<span class="chip">${escapeHtml(tag)}</span>`).join("")
-            : '<span class="chip">无标签</span>';
-          const metaAddress = server.source === "tailscale"
+          const offlineClass = server.online === false ? "offline" : "";
+          const sourceLabel = getSourceLabel(server);
+          const edit = getCardEdit(server.id);
+          const modeLabel = getModeLabel(edit.mode);
+          const showSession = shouldShowSession(edit.mode);
+          const address = server.source === "tailscale"
             ? `${escapeHtml(server.ip)} · ${escapeHtml(server.dns_name || server.hostname)}`
-            : `${escapeHtml(server.host)}:${escapeHtml(server.port)} · ${server.network === "public" ? "公网" : "内网"}`;
-          const websshButton = canUseWebssh()
-            ? `<button class="button primary webssh-button mobile-hidden" type="button" data-webssh="${escapeHtml(server.id)}">WebSSH</button>`
-            : "";
+            : `${escapeHtml(server.host)}:${escapeHtml(server.port)}`;
+          const tags = (server.tags || []).map((tag) => `<span class="badge tag">${escapeHtml(tag)}</span>`).join("");
 
           return `
-            <article class="server-card">
-              <div class="server-card-head">
-                <div class="server-title">
-                  <strong>${escapeHtml(server.display_name)}</strong>
-                  <span class="status-label"><span class="dot ${status.className}"></span>${escapeHtml(status.label)}</span>
-                  <span class="source-badge ${sourceClass}">${escapeHtml(getSourceLabel(server))}</span>
-                </div>
-                <div class="server-card-actions">
-                  <button class="button" type="button" data-copy-button="${escapeHtml(server.id)}">复制</button>
-                  ${websshButton}
-                </div>
+            <article class="server-card ${offlineClass}" data-server-card="${escapeHtml(server.id)}">
+              <div class="card-header">
+                <span class="dot ${status.className}"></span>
+                <strong class="card-title">${escapeHtml(server.display_name)}</strong>
+                <span class="badge source-${server.source}">${escapeHtml(sourceLabel)}</span>
+                ${tags}
+                ${server.tmux_session_exists ? '<span class="badge active">● 活跃</span>' : ""}
               </div>
 
-              <div class="server-card-meta">
-                <div>
-                  <div class="server-address">${metaAddress}</div>
-                  <div class="server-note">${escapeHtml(server.note || "无备注")}</div>
-                </div>
-                <div class="server-tags">${tags}</div>
+              <div class="card-meta">
+                <span>${address}</span>
+                <span class="sep">·</span>
+                <span class="editable" data-edit-type="user" data-server-id="${escapeHtml(server.id)}">${escapeHtml(edit.user)}</span>
+                <span class="sep">·</span>
+                <span class="editable" data-edit-type="mode" data-server-id="${escapeHtml(server.id)}">${escapeHtml(modeLabel)}</span>
+                <span class="sep mode-extra" style="display:${showSession ? "inline" : "none"}">·</span>
+                <span class="editable mode-extra" data-edit-type="session" data-server-id="${escapeHtml(server.id)}" style="display:${showSession ? "inline" : "none"}">${escapeHtml(edit.session)}</span>
               </div>
 
-              <div class="command" data-command="${escapeHtml(server.id)}">${escapeHtml(server.command)}</div>
-
-              <details class="settings-box">
-                <summary>展开设置</summary>
-                <div class="settings-grid">
-                  <div>
-                    <div class="hint">用户</div>
-                    <input class="input" data-user-input="${escapeHtml(server.id)}" type="text" value="${escapeHtml(server.user)}">
-                  </div>
-                  <div>
-                    <div class="hint">连接模式</div>
-                    <select class="select" data-session-mode="${escapeHtml(server.id)}">
-                      <option value="resume">恢复会话</option>
-                      <option value="new">新建会话</option>
-                      <option value="direct">直接连接</option>
-                    </select>
-                  </div>
-                  <div>
-                    <div class="hint">Session 名</div>
-                    <input class="input" data-session-name="${escapeHtml(server.id)}" type="text" value="${escapeHtml(server.session_name || server.hostname)}">
-                  </div>
-                </div>
-              </details>
-
-              ${server.source === "manual" ? `
-                <div class="settings-actions">
-                  <button class="button" type="button" data-edit-manual="${escapeHtml(server.raw_id)}">编辑</button>
-                  <button class="button danger" type="button" data-delete-manual="${escapeHtml(server.raw_id)}">删除</button>
-                </div>
-              ` : ""}
+              <div class="card-footer">
+                <div class="command" data-command="${escapeHtml(server.id)}">${escapeHtml(getCommandForServer(server.id))}</div>
+                <button class="button" type="button" data-copy-button="${escapeHtml(server.id)}">复制</button>
+                <button class="button primary webssh-btn" type="button" data-webssh="${escapeHtml(server.id)}">WebSSH</button>
+              </div>
             </article>
           `;
         }).join("");
-
-        el.serverGrid.querySelectorAll("[data-user-input], [data-session-mode], [data-session-name]").forEach((input) => {
-          const attr = input.getAttribute("data-user-input")
-            || input.getAttribute("data-session-mode")
-            || input.getAttribute("data-session-name");
-          const eventName = input.matches("select") ? "change" : "input";
-          input.addEventListener(eventName, () => updateCardCommand(attr));
-        });
 
         el.serverGrid.querySelectorAll("[data-copy-button]").forEach((button) => {
           button.addEventListener("click", async () => {
@@ -834,20 +863,6 @@
 
         el.serverGrid.querySelectorAll("[data-webssh]").forEach((button) => {
           button.addEventListener("click", () => openTerminal(button.getAttribute("data-webssh")));
-        });
-
-        el.serverGrid.querySelectorAll("[data-edit-manual]").forEach((button) => {
-          button.addEventListener("click", () => loadManualIntoForm(button.getAttribute("data-edit-manual")));
-        });
-
-        el.serverGrid.querySelectorAll("[data-delete-manual]").forEach((button) => {
-          button.addEventListener("click", async () => {
-            const rawId = button.getAttribute("data-delete-manual");
-            if (!confirm(`删除手动服务器 ${rawId}？`)) return;
-            await fetch(`/api/manual-servers/${encodeURIComponent(rawId)}`, { method: "DELETE" });
-            await loadManualServers();
-            await loadServers(true);
-          });
         });
       }
 
@@ -902,12 +917,8 @@
         state.manualServers = payload.servers || [];
         el.manualList.innerHTML = state.manualServers.map((server) => `
           <div class="manual-item">
-            <div class="manual-item-head">
-              <strong>${escapeHtml(server.display_name)}</strong>
-              <div class="chip">${server.network === "public" ? "公网" : "内网"}</div>
-            </div>
-            <div class="hint">${escapeHtml(server.host)}:${escapeHtml(server.port)}</div>
-            <div class="hint">${escapeHtml(server.note || "无备注")}</div>
+            <div style="font-weight: 600;">${escapeHtml(server.display_name)}</div>
+            <div class="hint">${escapeHtml(server.host)}:${escapeHtml(server.port)} · ${server.network === "public" ? "公网" : "内网"}</div>
           </div>
         `).join("");
       }
@@ -922,21 +933,6 @@
         el.manualSession.value = "";
         el.manualTags.value = "";
         el.manualNote.value = "";
-      }
-
-      function loadManualIntoForm(rawId) {
-        const server = state.manualServers.find((item) => item.raw_id === rawId);
-        if (!server) return;
-        state.editingManualId = rawId;
-        el.manualName.value = server.display_name;
-        el.manualHost.value = server.host;
-        el.manualUser.value = server.user;
-        el.manualPort.value = server.port;
-        el.manualNetwork.value = server.network;
-        el.manualSession.value = server.session_name || "";
-        el.manualTags.value = (server.tags || []).join(", ");
-        el.manualNote.value = server.note || "";
-        el.settingsOverlay.classList.add("visible");
       }
 
       async function saveManualServer() {
@@ -1000,9 +996,10 @@
       }
 
       async function openTerminal(serverId) {
+        if (window.innerWidth < 768) return;
+
         const server = state.data?.servers.find((item) => item.id === serverId);
         if (!server) return;
-        if (!canUseWebssh()) return;
 
         await closeTerminal();
 
@@ -1011,17 +1008,9 @@
           return;
         }
 
-        const modeInput = el.serverGrid.querySelector(`[data-session-mode="${CSS.escape(serverId)}"]`);
-        const sessionInput = el.serverGrid.querySelector(`[data-session-name="${CSS.escape(serverId)}"]`);
-        const userInput = el.serverGrid.querySelector(`[data-user-input="${CSS.escape(serverId)}"]`);
-        const sessionMode = modeInput ? modeInput.value : "resume";
-        const sessionName = sessionInput ? sessionInput.value.trim() : "";
-        if (userInput) {
-          const normalizedUser = userInput.value.trim() || state.data.default_target_user;
-          userInput.value = normalizedUser;
-          server.user = normalizedUser;
-          updateCardCommand(serverId);
-        }
+        const edit = getCardEdit(serverId);
+        const sessionMode = edit.mode || "resume";
+        const sessionName = edit.session || "";
 
         state.terminalInstance = new window.Terminal({
           cursorBlink: true,
@@ -1121,6 +1110,56 @@
         el.saveManual.addEventListener("click", saveManualServer);
         el.resetManual.addEventListener("click", resetManualForm);
         el.closeTerminal.addEventListener("click", closeTerminal);
+
+        el.serverGrid.addEventListener("click", (event) => {
+          const target = event.target.closest(".editable");
+          if (!target || target.classList.contains("editing")) return;
+
+          const type = target.dataset.editType;
+          const serverId = target.dataset.serverId;
+          const currentValue = target.textContent.trim();
+
+          let input;
+          if (type === "mode") {
+            input = document.createElement("select");
+            [["resume", "恢复会话"], ["new", "新建会话"], ["direct", "直接连接"]].forEach(([value, label]) => {
+              const option = document.createElement("option");
+              option.value = value;
+              option.textContent = label;
+              if (label === currentValue) option.selected = true;
+              input.appendChild(option);
+            });
+          } else {
+            input = document.createElement("input");
+            input.type = "text";
+            input.value = currentValue;
+          }
+
+          input.className = "editable-input";
+          target.classList.add("editing");
+          target.replaceWith(input);
+          input.focus();
+
+          const finish = () => {
+            const newValue = input.value.trim();
+            const span = document.createElement("span");
+            span.className = "editable";
+            span.dataset.editType = type;
+            span.dataset.serverId = serverId;
+            span.textContent = type === "mode"
+              ? input.options[input.selectedIndex].text
+              : (newValue || currentValue);
+            input.replaceWith(span);
+            saveCardEdit(serverId, type, type === "mode" ? input.value : newValue);
+            updateCardCommand(serverId);
+            updateModeExtraVisibility(serverId);
+          };
+
+          input.addEventListener("blur", finish, { once: true });
+          input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") input.blur();
+          });
+        });
 
         document.addEventListener("keydown", (event) => {
           if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement) {
