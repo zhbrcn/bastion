@@ -6,19 +6,25 @@ __pycache__/
 venv/
 .venv/
 
-# 本地配置(只提交 .example)
+# Local config
 config/*.yaml
 !config/*.yaml.example
 
-# 日志
+# Logs
 *.log
 
-# 编辑器
+# Editors
 .vscode/
 .idea/
+*.iml
 *.swp
 .DS_Store
 
-# 测试
+# Tests
 .pytest_cache/
 .coverage
+
+# Android / Android Studio
+.gradle/
+local.properties
+**/build/
