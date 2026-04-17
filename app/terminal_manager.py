@@ -36,6 +36,8 @@ class TerminalManager:
     def create(self, command: str) -> TerminalSession:
         """Spawn a new PTY subprocess."""
         master_fd, slave_fd = pty.openpty()
+        env = os.environ.copy()
+        env.setdefault("TERM", "xterm-256color")
         process = subprocess.Popen(
             ["/bin/bash", "-lc", command],
             stdin=slave_fd,
@@ -44,6 +46,7 @@ class TerminalManager:
             text=True,
             close_fds=True,
             preexec_fn=os.setsid,
+            env=env,
         )
         os.close(slave_fd)
 
