@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import pty
@@ -70,35 +71,57 @@ def _build_jumpbox_command(
     tmux_prefix: str,
     hostname: str,
     target_user: str,
+    session_mode: str = "resume",
+    session_name: str = "",
 ) -> str:
     """Build a client-side SSH command that enters the bastion then tmux."""
-    session_name = f"{tmux_prefix}{hostname}"
-    remote_command = (
-        "tmux new-session -A -s "
-        f"{shlex.quote(session_name)} "
-        f"bastion-ssh {shlex.quote(hostname)} {shlex.quote(target_user)}"
-    )
+    effective_session = session_name or f"{tmux_prefix}{hostname}"
+    if session_mode == "direct":
+        remote_command = f"bastion-ssh {shlex.quote(hostname)} {shlex.quote(target_user)}"
+    elif session_mode == "new":
+        remote_command = (
+            "tmux new-session -s "
+            f"{shlex.quote(effective_session)} "
+            f"bastion-ssh {shlex.quote(hostname)} {shlex.quote(target_user)}"
+        )
+    else:
+        remote_command = (
+            "tmux new-session -A -s "
+            f"{shlex.quote(effective_session)} "
+            f"bastion-ssh {shlex.quote(hostname)} {shlex.quote(target_user)}"
+        )
     return (
         f"ssh -t {shlex.quote(jumpbox_user)}@{shlex.quote(jumpbox_host)} "
         f"{shlex.quote(remote_command)}"
     )
 
 
-def _build_direct_command(server: dict[str, Any]) -> str:
+def _build_direct_command(
+    server: dict[str, Any],
+    session_mode: str = "resume",
+    session_name: str = "",
+) -> str:
     """Build a client-side direct SSH command for manually added servers."""
-    session_name = server.get("session_name") or server["hostname"]
+    effective_session = session_name or server.get("session_name") or server["hostname"]
     port = int(server.get("port", 22))
-    remote_command = (
-        "tmux new-session -A -s "
-        f"{shlex.quote(session_name)}"
-    )
-    return (
-        f"ssh -t -p {port} {shlex.quote(server['user'])}@{shlex.quote(server['host'])} "
-        f"{shlex.quote(remote_command)}"
-    )
+    if session_mode == "direct":
+        remote_command = ""
+    elif session_mode == "new":
+        remote_command = f"tmux new-session -s {shlex.quote(effective_session)}"
+    else:
+        remote_command = f"tmux new-session -A -s {shlex.quote(effective_session)}"
+    command = f"ssh -t -p {port} {shlex.quote(server['user'])}@{shlex.quote(server['host'])}"
+    if remote_command:
+        command += f" {shlex.quote(remote_command)}"
+    return command
 
 
-def _build_server_command(server: dict[str, Any], settings: dict[str, Any]) -> str:
+def _build_server_command(
+    server: dict[str, Any],
+    settings: dict[str, Any],
+    session_mode: str = "resume",
+    session_name: str = "",
+) -> str:
     """Build the copyable SSH command for any server."""
     if server["source"] == "tailscale":
         return _build_jumpbox_command(
@@ -107,25 +130,43 @@ def _build_server_command(server: dict[str, Any], settings: dict[str, Any]) -> s
             tmux_prefix=settings.get("defaults", {}).get("tmux_prefix", ""),
             hostname=server["hostname"],
             target_user=server["user"],
+            session_mode=session_mode,
+            session_name=session_name,
         )
-    return _build_direct_command(server)
+    return _build_direct_command(server, session_mode=session_mode, session_name=session_name)
 
 
-def _build_terminal_command(server: dict[str, Any], settings: dict[str, Any]) -> str:
+def _build_terminal_command(
+    server: dict[str, Any],
+    settings: dict[str, Any],
+    session_mode: str = "resume",
+    session_name: str = "",
+) -> str:
     """Build a server-side command for the web terminal session."""
     if server["source"] == "tailscale":
-        session_name = f"{settings.get('defaults', {}).get('tmux_prefix', '')}{server['hostname']}"
+        effective_session = session_name or f"{settings.get('defaults', {}).get('tmux_prefix', '')}{server['hostname']}"
+        if session_mode == "direct":
+            return f"bastion-ssh {shlex.quote(server['hostname'])} {shlex.quote(server['user'])}"
+        if session_mode == "new":
+            return (
+                "tmux new-session -s "
+                f"{shlex.quote(effective_session)} "
+                f"bastion-ssh {shlex.quote(server['hostname'])} {shlex.quote(server['user'])}"
+            )
         return (
             "tmux new-session -A -s "
-            f"{shlex.quote(session_name)} "
+            f"{shlex.quote(effective_session)} "
             f"bastion-ssh {shlex.quote(server['hostname'])} {shlex.quote(server['user'])}"
         )
 
-    session_name = server.get("session_name") or server["hostname"]
+    effective_session = session_name or server.get("session_name") or server["hostname"]
     port = int(server.get("port", 22))
+    if session_mode == "direct":
+        return f"ssh -tt -p {port} {shlex.quote(server['user'])}@{shlex.quote(server['host'])}"
+    tmux_command = "tmux new-session -A -s " if session_mode != "new" else "tmux new-session -s "
     return (
         f"ssh -tt -p {port} {shlex.quote(server['user'])}@{shlex.quote(server['host'])} "
-        f"{shlex.quote('tmux new-session -A -s ' + shlex.quote(session_name))}"
+        f"{shlex.quote(tmux_command + shlex.quote(effective_session))}"
     )
 
 
@@ -241,6 +282,18 @@ def ws_terminal(ws: Any, server_id: str) -> None:
         ws.send("\r\n[error] server not found\r\n")
         return
 
+    init_message = ws.receive()
+    session_mode = "resume"
+    session_name = ""
+    if isinstance(init_message, str):
+        try:
+            payload = json.loads(init_message)
+            if payload.get("type") == "init":
+                session_mode = str(payload.get("session_mode") or "resume")
+                session_name = str(payload.get("session_name") or "").strip()
+        except Exception:
+            pass
+
     master_fd, slave_fd = pty.openpty()
     env = os.environ.copy()
     env.setdefault("TERM", "xterm-256color")
@@ -249,7 +302,16 @@ def ws_terminal(ws: Any, server_id: str) -> None:
     process = None
     try:
         process = subprocess.Popen(  # type: ignore[name-defined]
-            ["/bin/bash", "-lc", _build_terminal_command(server, settings)],
+            [
+                "/bin/bash",
+                "-lc",
+                _build_terminal_command(
+                    server,
+                    settings,
+                    session_mode=session_mode,
+                    session_name=session_name,
+                ),
+            ],
             stdin=slave_fd,
             stdout=slave_fd,
             stderr=slave_fd,
@@ -271,6 +333,8 @@ def ws_terminal(ws: Any, server_id: str) -> None:
             if message is None:
                 break
             if isinstance(message, str):
+                if message.startswith("{") and '"type"' in message:
+                    continue
                 os.write(master_fd, message.encode("utf-8"))
     finally:
         try:
@@ -444,11 +508,18 @@ def api_terminal_create() -> Response:
     """Create a new browser terminal session."""
     payload = request.get_json(silent=True) or {}
     server_id = str(payload.get("server_id") or "")
+    session_mode = str(payload.get("session_mode") or "resume")
+    session_name = str(payload.get("session_name") or "").strip()
     server, settings = _find_server(server_id)
     if server is None:
         return jsonify({"ok": False, "error": "server not found"}), 404
 
-    command = _build_terminal_command(server, settings)
+    command = _build_terminal_command(
+        server,
+        settings,
+        session_mode=session_mode,
+        session_name=session_name,
+    )
     session = terminals.create(command)
     initial_output = terminals.read(session.session_id)
     return jsonify(

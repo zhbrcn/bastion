@@ -55,7 +55,7 @@
     .auth-list, .manual-list { display: grid; gap: 10px; }
     .auth-item, .manual-item { padding: 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel-2); }
     .server-head, .server-row {
-      display: grid; grid-template-columns: 1.5fr 1.2fr .8fr 1fr 2fr 1fr; gap: 12px; padding: 12px 16px; align-items: center;
+      display: grid; grid-template-columns: 1.4fr 1.1fr .8fr 1.2fr 2fr 1fr; gap: 12px; padding: 12px 16px; align-items: center;
     }
     .server-head { background: var(--panel-2); color: var(--muted); font-size: 13px; border-bottom: 1px solid var(--border); }
     .server-row { border-bottom: 1px solid var(--border); }
@@ -88,6 +88,7 @@
       background: #0b0f14; color: #d7e3f4; border: 1px solid var(--border); border-radius: 4px; padding: 12px;
       overflow: auto; font-family: var(--font-code); font-size: 13px; white-space: pre-wrap;
     }
+    .terminal-screen { padding: 0; }
     #terminal-mount { width: 100%; height: 100%; min-height: 420px; }
     .terminal-input-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; }
     @media (max-width: 980px) {
@@ -200,10 +201,11 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
   <script>
     (() => {
       const fallbackInterval = {{ refresh_interval|tojson }};
-      const state = { data: null, search: "", activeTag: "", lastFetchedAt: 0, refreshTimer: null, tickTimer: null, manualServers: [], editingManualId: "", terminalSocket: null, terminalInstance: null };
+      const state = { data: null, search: "", activeTag: "", lastFetchedAt: 0, refreshTimer: null, tickTimer: null, manualServers: [], editingManualId: "", terminalSocket: null, terminalInstance: null, terminalFitAddon: null };
       const el = {
         pageTitle: document.getElementById("page-title"), pageSubtitle: document.getElementById("page-subtitle"),
         summaryTotal: document.getElementById("summary-total"), summaryOnline: document.getElementById("summary-online"),
@@ -341,6 +343,16 @@
               <div class="status"><span class="dot ${status.className}">${status.dot}</span><span>${status.label}</span></div>
               <div>
                 <input class="input" data-user-input="${escapeHtml(server.id)}" type="text" value="${escapeHtml(server.user)}">
+                <div style="margin-top:8px;">
+                  <select class="select" data-session-mode="${escapeHtml(server.id)}">
+                    <option value="resume">恢复会话</option>
+                    <option value="new">新建会话</option>
+                    <option value="direct">直接连接</option>
+                  </select>
+                </div>
+                <div style="margin-top:8px;">
+                  <input class="input" data-session-name="${escapeHtml(server.id)}" type="text" value="${escapeHtml(server.session_name || server.hostname)}" placeholder="session 名">
+                </div>
                 <div class="hint" style="margin-top:6px;">${sessionText}</div>
               </div>
               <div><div class="command" data-command="${escapeHtml(server.id)}">${escapeHtml(server.command)}</div></div>
@@ -354,20 +366,53 @@
           `;
         }).join("");
 
+        function buildRowCommand(serverId) {
+          const server = state.data.servers.find((item) => item.id === serverId);
+          const userInput = el.serverRows.querySelector(`[data-user-input="${CSS.escape(serverId)}"]`);
+          const modeInput = el.serverRows.querySelector(`[data-session-mode="${CSS.escape(serverId)}"]`);
+          const sessionInput = el.serverRows.querySelector(`[data-session-name="${CSS.escape(serverId)}"]`);
+          if (!server || !userInput || !modeInput || !sessionInput) return "";
+          const user = userInput.value.trim() || state.data.default_target_user;
+          const mode = modeInput.value;
+          const sessionName = sessionInput.value.trim() || server.session_name || server.hostname;
+          if (server.source === "tailscale") {
+            if (mode === "direct") {
+              return `ssh -t ${state.data.jumpbox_user}@${state.data.jumpbox_host} "bastion-ssh '${server.hostname.replace(/'/g, "'\\''")}' '${user.replace(/'/g, "'\\''")}'"`;
+            }
+            const tmuxCommand = mode === "new" ? "tmux new-session -s" : "tmux new-session -A -s";
+            return `ssh -t ${state.data.jumpbox_user}@${state.data.jumpbox_host} "${tmuxCommand} '${sessionName.replace(/'/g, "'\\''")}' bastion-ssh '${server.hostname.replace(/'/g, "'\\''")}' '${user.replace(/'/g, "'\\''")}'"`;
+          }
+          if (mode === "direct") {
+            return `ssh -t -p ${server.port} ${user}@${server.host}`;
+          }
+          const tmuxCommand = mode === "new" ? "tmux new-session -s" : "tmux new-session -A -s";
+          return `ssh -t -p ${server.port} ${user}@${server.host} "${tmuxCommand} '${sessionName.replace(/'/g, "'\\''")}'"`;
+        }
+
         el.serverRows.querySelectorAll("[data-user-input]").forEach((input) => {
           input.addEventListener("input", () => {
             const id = input.getAttribute("data-user-input");
-            const server = state.data.servers.find((item) => item.id === id);
             const code = el.serverRows.querySelector(`[data-command="${CSS.escape(id)}"]`);
-            if (!server || !code) return;
-            const user = input.value.trim() || state.data.default_target_user;
-            if (server.source === "tailscale") {
-              const sessionName = `${state.data.tmux_prefix}${server.hostname}`;
-              code.textContent = `ssh -t ${state.data.jumpbox_user}@${state.data.jumpbox_host} "tmux new-session -A -s '${sessionName.replace(/'/g, "'\\''")}' bastion-ssh '${server.hostname.replace(/'/g, "'\\''")}' '${user.replace(/'/g, "'\\''")}'"`;
-            } else {
-              const sessionName = server.session_name || server.hostname;
-              code.textContent = `ssh -t -p ${server.port} ${user}@${server.host} "tmux new-session -A -s '${String(sessionName).replace(/'/g, "'\\''")}'"`;
-            }
+            if (!code) return;
+            code.textContent = buildRowCommand(id);
+          });
+        });
+
+        el.serverRows.querySelectorAll("[data-session-mode]").forEach((input) => {
+          input.addEventListener("change", () => {
+            const id = input.getAttribute("data-session-mode");
+            const code = el.serverRows.querySelector(`[data-command="${CSS.escape(id)}"]`);
+            if (!code) return;
+            code.textContent = buildRowCommand(id);
+          });
+        });
+
+        el.serverRows.querySelectorAll("[data-session-name]").forEach((input) => {
+          input.addEventListener("input", () => {
+            const id = input.getAttribute("data-session-name");
+            const code = el.serverRows.querySelector(`[data-command="${CSS.escape(id)}"]`);
+            if (!code) return;
+            code.textContent = buildRowCommand(id);
           });
         });
 
@@ -537,15 +582,30 @@
           scrollback: 5000,
           theme: { background: "#0b0f14", foreground: "#d7e3f4" },
         });
+        state.terminalFitAddon = new window.FitAddon.FitAddon();
+        state.terminalInstance.loadAddon(state.terminalFitAddon);
         el.terminalMount.innerHTML = "";
         state.terminalInstance.open(el.terminalMount);
+        state.terminalFitAddon.fit();
         el.terminalTitle.textContent = `WebSSH · ${server.display_name}`;
         el.terminalCommand.textContent = server.command;
         el.terminalWrap.classList.add("visible");
         state.terminalInstance.writeln(`Connecting to ${server.display_name} ...`);
 
+        const modeInput = el.serverRows.querySelector(`[data-session-mode="${CSS.escape(serverId)}"]`);
+        const sessionInput = el.serverRows.querySelector(`[data-session-name="${CSS.escape(serverId)}"]`);
+        const sessionMode = modeInput ? modeInput.value : "resume";
+        const sessionName = sessionInput ? sessionInput.value.trim() : "";
+
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
         const socket = new WebSocket(`${protocol}://${window.location.host}/ws/terminal/${encodeURIComponent(serverId)}`);
+        socket.addEventListener("open", () => {
+          socket.send(JSON.stringify({
+            type: "init",
+            session_mode: sessionMode,
+            session_name: sessionName,
+          }));
+        });
         socket.addEventListener("message", (event) => {
           if (state.terminalInstance) state.terminalInstance.write(event.data);
         });
@@ -556,6 +616,9 @@
           if (state.terminalInstance) state.terminalInstance.writeln("\r\n[websocket error]");
         });
         state.terminalSocket = socket;
+        window.setTimeout(() => {
+          if (state.terminalFitAddon) state.terminalFitAddon.fit();
+        }, 50);
       }
 
       async function sendTerminalInput(data) {
@@ -572,6 +635,7 @@
           state.terminalInstance.dispose();
         }
         state.terminalInstance = null;
+        state.terminalFitAddon = null;
         el.terminalWrap.classList.remove("visible");
         el.terminalMount.innerHTML = "";
       }
@@ -617,6 +681,9 @@
             event.preventDefault();
             loadServers(true);
           }
+        });
+        window.addEventListener("resize", () => {
+          if (state.terminalFitAddon) state.terminalFitAddon.fit();
         });
         state.tickTimer = window.setInterval(() => {
           el.lastUpdated.textContent = relativeTime(state.lastFetchedAt);
