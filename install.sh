@@ -164,9 +164,27 @@ install_nginx() {
     listen_lines="$(build_listen_lines)"
 
     log_info "写入 Nginx 配置"
+    cat > "${NGINX_AVAILABLE}" <<EOF
+server {
+${listen_lines}    server_name _;
 
-    awk -v lines="${listen_lines}" '{gsub(/\{\{LISTEN_LINES\}\}/, lines)}1' \
-        "${PROJECT_ROOT}/deploy/nginx.conf" > "${NGINX_AVAILABLE}"
+    access_log /var/log/nginx/bastion-access.log;
+    error_log /var/log/nginx/bastion-error.log;
+
+    client_max_body_size 1m;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+        proxy_connect_timeout 10s;
+    }
+}
+EOF
 
     ln -sfn "${NGINX_AVAILABLE}" "${NGINX_ENABLED}"
 
