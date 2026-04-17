@@ -53,8 +53,7 @@ check_system() {
     # shellcheck disable=SC1091
     source /etc/os-release
     case "${ID:-}" in
-        debian|ubuntu)
-            ;;
+        debian|ubuntu) ;;
         *)
             log_error "仅支持 Debian / Ubuntu，当前系统: ${ID:-unknown}"
             exit 1
@@ -118,17 +117,55 @@ install_systemd() {
     systemctl enable --now "${SERVICE_NAME}"
 }
 
-install_nginx() {
-    local tailscale_ip
-    tailscale_ip="$(tailscale ip -4 | head -n1 | tr -d '[:space:]')"
+detect_tailscale_ip() {
+    tailscale ip -4 | head -n1 | tr -d '[:space:]'
+}
+
+detect_primary_lan_ip() {
+    ip -4 route get 1.1.1.1 2>/dev/null | awk '
+        {
+            for (i = 1; i <= NF; i++) {
+                if ($i == "src" && (i + 1) <= NF) {
+                    print $(i + 1)
+                    exit
+                }
+            }
+        }
+    '
+}
+
+build_listen_lines() {
+    local tailscale_ip lan_ip line
+    local -a addresses=()
+
+    tailscale_ip="$(detect_tailscale_ip)"
+    lan_ip="$(detect_primary_lan_ip)"
 
     if [[ -z "${tailscale_ip}" ]]; then
         log_error "无法获取 Tailscale IPv4 地址"
         exit 1
     fi
 
-    log_info "写入 Nginx 配置，监听 ${tailscale_ip}:1234"
-    sed "s/{{TAILSCALE_IP}}/${tailscale_ip}/g" \
+    addresses+=("${tailscale_ip}")
+
+    if [[ -n "${lan_ip}" && "${lan_ip}" != "${tailscale_ip}" && "${lan_ip}" != "127.0.0.1" ]]; then
+        addresses+=("${lan_ip}")
+    fi
+
+    for address in "${addresses[@]}"; do
+        line+="    listen ${address}:1234;"$'\n'
+    done
+
+    printf '%s' "${line}"
+}
+
+install_nginx() {
+    local listen_lines
+    listen_lines="$(build_listen_lines)"
+
+    log_info "写入 Nginx 配置"
+
+    awk -v lines="${listen_lines}" '{gsub(/\{\{LISTEN_LINES\}\}/, lines)}1' \
         "${PROJECT_ROOT}/deploy/nginx.conf" > "${NGINX_AVAILABLE}"
 
     ln -sfn "${NGINX_AVAILABLE}" "${NGINX_ENABLED}"
@@ -138,13 +175,17 @@ install_nginx() {
 }
 
 show_summary() {
-    local tailscale_ip
-    tailscale_ip="$(tailscale ip -4 | head -n1 | tr -d '[:space:]')"
+    local tailscale_ip lan_ip
+    tailscale_ip="$(detect_tailscale_ip)"
+    lan_ip="$(detect_primary_lan_ip)"
 
     printf "\n${BLUE}Bastion 安装完成${NC}\n"
     printf "安装目录: %s\n" "${INSTALL_DIR}"
     printf "配置目录: %s\n" "${CONFIG_DIR}"
-    printf "访问地址: http://%s:1234\n" "${tailscale_ip}"
+    printf "Tailscale 访问地址: http://%s:1234\n" "${tailscale_ip}"
+    if [[ -n "${lan_ip}" && "${lan_ip}" != "${tailscale_ip}" && "${lan_ip}" != "127.0.0.1" ]]; then
+        printf "局域网访问地址: http://%s:1234\n" "${lan_ip}"
+    fi
     printf "服务状态: systemctl status %s\n" "${SERVICE_NAME}"
     printf "查看日志: journalctl -u %s -f\n" "${SERVICE_NAME}"
     printf "Nginx 测试: nginx -t\n"

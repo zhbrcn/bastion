@@ -1,4 +1,4 @@
-"""封装 tailscale 命令调用。"""
+"""Tailscale command helpers."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def _run_tailscale(args: list[str]) -> Optional[str]:
-    """运行 tailscale 命令，失败时返回 None。"""
+    """Run a tailscale command and return stdout on success."""
     try:
         result = subprocess.run(
             ["tailscale", *args],
@@ -27,7 +27,7 @@ def _run_tailscale(args: list[str]) -> Optional[str]:
 
 
 def get_status() -> Optional[dict[str, Any]]:
-    """调用 `tailscale status --json` 并返回解析后的结果。"""
+    """Return parsed output from `tailscale status --json`."""
     output = _run_tailscale(["status", "--json"])
     if output is None:
         return None
@@ -39,48 +39,124 @@ def get_status() -> Optional[dict[str, Any]]:
         return None
 
 
-def _extract_ipv4(addresses: list[str]) -> Optional[str]:
-    """从地址列表中提取第一个 IPv4 地址。"""
+def _extract_ipv4(addresses: list[str]) -> str:
+    """Return the first IPv4 address from a list, or an empty string."""
     for address in addresses:
         if ":" not in address:
             return address
-    return None
+    return ""
 
 
-def get_nodes() -> list[dict[str, Any]]:
-    """返回当前 Tailscale 网络中的其他节点信息列表。"""
+def _normalize_hostname(hostname: str, dns_name: str) -> str:
+    """Choose a stable hostname from HostName / DNSName."""
+    hostname = str(hostname or "").strip()
+    if hostname:
+        return hostname
+
+    dns_name = str(dns_name or "").strip().rstrip(".")
+    if dns_name:
+        return dns_name.split(".", 1)[0]
+
+    return "unknown"
+
+
+def _status_from_json() -> list[dict[str, Any]]:
+    """Parse peers from `tailscale status --json`."""
     status = get_status()
     if status is None:
         return []
 
     nodes: list[dict[str, Any]] = []
-    peer_map = status.get("Peer", {}) or {}
-
-    for peer in peer_map.values():
-        ipv4 = _extract_ipv4(peer.get("TailscaleIPs", []) or [])
-        if not ipv4:
-            continue
-
-        raw_tags = peer.get("Tags", []) or []
-        tags = [tag.removeprefix("tag:") for tag in raw_tags]
+    for peer in (status.get("Peer", {}) or {}).values():
         dns_name = str(peer.get("DNSName", "")).rstrip(".")
+        hostname = _normalize_hostname(peer.get("HostName", ""), dns_name)
+        ipv4 = _extract_ipv4(peer.get("TailscaleIPs", []) or [])
 
         nodes.append(
             {
-                "hostname": peer.get("HostName", "unknown"),
+                "hostname": hostname,
                 "dns_name": dns_name,
                 "ip": ipv4,
                 "online": bool(peer.get("Online", False)),
                 "os": peer.get("OS", "unknown"),
-                "tags": tags,
+                "tags": [
+                    str(tag).removeprefix("tag:")
+                    for tag in (peer.get("Tags", []) or [])
+                ],
             }
         )
 
     return nodes
 
 
+def _status_from_text() -> list[dict[str, Any]]:
+    """Parse peers from plain `tailscale status` as a fallback source."""
+    output = _run_tailscale(["status"])
+    if output is None:
+        return []
+
+    nodes: list[dict[str, Any]] = []
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+
+        ip = parts[0]
+        hostname = parts[1]
+        if "." in hostname:
+            hostname = hostname.split(".", 1)[0]
+
+        if ":" in ip or ip.lower() in {"100.x.x.x", "ip"}:
+            continue
+
+        lower_line = line.lower()
+        online = "offline" not in lower_line
+
+        nodes.append(
+            {
+                "hostname": hostname,
+                "dns_name": "",
+                "ip": ip,
+                "online": online,
+                "os": "unknown",
+                "tags": [],
+            }
+        )
+
+    return nodes
+
+
+def get_nodes() -> list[dict[str, Any]]:
+    """Return peers, combining JSON data with plain-text fallback parsing."""
+    merged: dict[str, dict[str, Any]] = {}
+
+    for node in _status_from_text():
+        key = node["hostname"] or node["ip"]
+        merged[key] = node
+
+    for node in _status_from_json():
+        key = node["hostname"] or node["ip"]
+        existing = merged.get(key, {})
+        merged[key] = {
+            "hostname": node.get("hostname") or existing.get("hostname", "unknown"),
+            "dns_name": node.get("dns_name") or existing.get("dns_name", ""),
+            "ip": node.get("ip") or existing.get("ip", ""),
+            "online": bool(node.get("online", existing.get("online", False))),
+            "os": node.get("os") or existing.get("os", "unknown"),
+            "tags": node.get("tags") or existing.get("tags", []),
+        }
+
+    nodes = [node for node in merged.values() if node.get("hostname") and node.get("ip")]
+    nodes.sort(key=lambda item: (not item["online"], item["hostname"]))
+    return nodes
+
+
 def get_self_hostname() -> Optional[str]:
-    """返回当前跳板机的 Tailscale MagicDNS 主机名。"""
+    """Return the local node MagicDNS hostname or HostName."""
     status = get_status()
     if status is None:
         return None
@@ -93,7 +169,7 @@ def get_self_hostname() -> Optional[str]:
 
 
 def get_self_ip() -> Optional[str]:
-    """返回当前跳板机的 Tailscale IPv4 地址。"""
+    """Return the local node Tailscale IPv4 address."""
     output = _run_tailscale(["ip", "-4"])
     if output is None:
         return None
