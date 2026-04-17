@@ -55,21 +55,40 @@ _WINDOWS_INVALID_FILENAME = re.compile(r'[\\/:*?"<>|]+')
 LAUNCHER_INSTALL_BAT = r"""@echo off
 setlocal
 set "INSTALL_DIR=%LOCALAPPDATA%\bastion"
+set "LAUNCHER_BAT=%INSTALL_DIR%\bastion-launcher.bat"
+set "LAUNCHER_PS1=%INSTALL_DIR%\bastion-launcher.ps1"
 
 echo Installing to %INSTALL_DIR%...
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
-copy /Y "%~dp0bastion-launcher.bat" "%INSTALL_DIR%\bastion-launcher.bat" >nul
-copy /Y "%~dp0bastion-launcher.ps1" "%INSTALL_DIR%\bastion-launcher.ps1" >nul
+
+copy /Y "%~dp0bastion-launcher.bat" "%LAUNCHER_BAT%" >nul || goto :fail
+copy /Y "%~dp0bastion-launcher.ps1" "%LAUNCHER_PS1%" >nul || goto :fail
 
 echo Registering bastion:// protocol...
-reg add "HKCU\Software\Classes\bastion" /ve /d "URL:Bastion Protocol" /f >nul
-reg add "HKCU\Software\Classes\bastion" /v "URL Protocol" /d "" /f >nul
-reg add "HKCU\Software\Classes\bastion\shell\open\command" /ve /d "\"%INSTALL_DIR%\bastion-launcher.bat\" \"%%1\"" /f >nul
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$launcher = [IO.Path]::Combine($env:LOCALAPPDATA, 'bastion', 'bastion-launcher.bat');" ^
+  "$protocol = 'HKCU:\Software\Classes\bastion';" ^
+  "$command = 'HKCU:\Software\Classes\bastion\shell\open\command';" ^
+  "New-Item -Path $protocol -Force | Out-Null;" ^
+  "Set-Item -Path $protocol -Value 'URL:Bastion Protocol';" ^
+  "New-ItemProperty -Path $protocol -Name 'URL Protocol' -Value '' -PropertyType String -Force | Out-Null;" ^
+  "New-Item -Path $command -Force | Out-Null;" ^
+  "$open = '""' + $launcher + '"" ""%%1""';" ^
+  "Set-Item -Path $command -Value $open;" || goto :fail
 
 echo.
-echo [OK] 安装完成。现在可以在面板点击"打开终端"按钮了。
+echo [OK] Installation complete.
+echo You can now click the "Open Terminal" button on the Bastion panel.
 echo.
 pause
+exit /b 0
+
+:fail
+echo.
+echo [ERROR] Installation failed.
+echo.
+pause
+exit /b 1
 """
 
 LAUNCHER_EXECUTOR_BAT = r"""@echo off
@@ -78,7 +97,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bastion-launcher.ps1" 
 
 LAUNCHER_EXECUTOR_PS1 = r"""param([string]$Url)
 
-# 解析 bastion://connect?... 
+# 解析 bastion://connect?...
 if ($Url -notmatch '^bastion://connect\?(.+)$') {
     Write-Host "Invalid URL: $Url"
     Read-Host "Press Enter to exit"
@@ -135,25 +154,27 @@ if ($wt) {
 }
 """
 
-LAUNCHER_README = r"""Bastion Windows 启动器
-这个工具让你在浏览器中点击按钮直接打开 Windows Terminal 连接服务器。
-安装步骤：
+LAUNCHER_README = r"""Bastion Windows Launcher
+This package lets the browser open Windows Terminal directly from the Bastion panel.
 
-解压所有文件到任意目录（不要删除 bastion-launcher.bat）
-双击 bastion-install.bat 运行（无需管理员权限）
-完成后回到 Bastion 面板，点击"打开终端"按钮即可
+Install:
+1. Extract all files to any folder.
+2. Keep bastion-launcher.bat and bastion-launcher.ps1 together.
+3. Double-click bastion-install.bat. Admin rights are not required.
+4. Return to the Bastion panel and click "Open Terminal".
 
-首次点击时，浏览器会询问"是否允许此网站打开 Bastion 协议？"，
-选择"允许"并勾选"始终允许"即可。
-前置要求：
+First use:
+Your browser may ask whether this site can open the bastion:// protocol.
+Choose Allow, and optionally enable Always allow.
 
-Windows 10/11
-已内置 OpenSSH 客户端（Windows 10+ 默认开启）
-推荐安装 Windows Terminal（从 Microsoft Store 免费获取）
+Requirements:
+- Windows 10 or Windows 11
+- OpenSSH client installed
+- Windows Terminal recommended
 
-卸载：
-在注册表中删除 HKCU\Software\Classes\bastion 项
-并删除 %LOCALAPPDATA%\bastion 目录
+Uninstall:
+- Delete HKCU\Software\Classes\bastion
+- Delete %LOCALAPPDATA%\bastion
 """
 
 

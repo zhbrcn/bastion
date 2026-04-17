@@ -88,6 +88,7 @@
     .button {
       min-height: 38px;
       padding: 8px 14px;
+      min-width: 0;
     }
 
     .button:hover, .input:focus, .select:focus, .textarea:focus, .command:hover, .meta-select:hover, .meta-select:focus {
@@ -189,6 +190,7 @@
       display: grid;
       gap: 14px;
       padding: 16px;
+      min-width: 0;
     }
 
     .server-card.offline {
@@ -205,6 +207,7 @@
       gap: 8px;
       align-items: center;
       flex-wrap: wrap;
+      min-width: 0;
     }
 
     .card-title {
@@ -222,6 +225,7 @@
       background: var(--panel-2);
       color: var(--muted);
       font-size: 12px;
+      min-width: 0;
     }
 
     .badge.source-tailscale {
@@ -244,16 +248,34 @@
     }
 
     .card-meta {
-      display: flex;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto auto auto auto;
       gap: 8px;
       align-items: center;
-      flex-wrap: wrap;
       font-size: 13px;
       color: var(--muted);
+      min-width: 0;
     }
 
     .card-meta .sep {
       color: var(--border);
+    }
+
+    .meta-address {
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-family: var(--font-code);
+    }
+
+    .meta-domain {
+      display: inline-block;
+      max-width: 100%;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      vertical-align: bottom;
     }
 
     .editable {
@@ -261,6 +283,10 @@
       cursor: pointer;
       color: var(--primary);
       padding: 0 2px;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
 
     .editable:hover {
@@ -276,6 +302,7 @@
       font: inherit;
       padding: 0 2px;
       min-width: 60px;
+      width: 100%;
     }
 
     .editable-input:focus {
@@ -292,6 +319,8 @@
       padding: 2px 6px;
       cursor: pointer;
       min-height: 24px;
+      justify-self: end;
+      max-width: 100%;
     }
 
     .card-footer {
@@ -299,6 +328,7 @@
       flex-direction: column;
       gap: 8px;
       align-items: stretch;
+      min-width: 0;
     }
 
     .card-footer .command {
@@ -312,6 +342,7 @@
       text-overflow: ellipsis;
       cursor: pointer;
       border-radius: 8px;
+      min-width: 0;
     }
 
     .card-footer .command.expanded {
@@ -325,12 +356,15 @@
     }
 
     .card-footer .button-row {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
+      width: 100%;
     }
 
     .card-footer .button-row .button {
-      flex: 1;
+      width: 100%;
+      min-width: 0;
       min-height: 36px;
     }
 
@@ -440,6 +474,16 @@
       .grid-2 { grid-template-columns: 1fr; }
       .summary { gap: 10px; }
       .terminal-panel { width: 100vw; height: 100vh; border-radius: 0; }
+      .card-meta {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .card-meta .sep,
+      .card-meta .mode-extra {
+        display: none !important;
+      }
+      .meta-select {
+        justify-self: start;
+      }
     }
 
     @media (max-width: 767px) {
@@ -717,6 +761,15 @@
         return mode === "new";
       }
 
+      function formatAddress(server) {
+        if (server.source === "tailscale") {
+          const ip = server.ip || server.host || server.hostname;
+          const domain = server.dns_name || server.hostname;
+          return `${ip} · ${domain}`;
+        }
+        return `${server.host}:${server.port}`;
+      }
+
       function getCommandForServer(serverId) {
         const server = state.data?.servers.find((item) => item.id === serverId);
         if (!server) return "";
@@ -869,10 +922,8 @@
           const sourceLabel = getSourceLabel(server);
           const edit = getCardEdit(server.id);
           const showSession = shouldShowSession(edit.mode);
-          const address = server.source === "tailscale"
-            ? `${escapeHtml(server.ip)} · ${escapeHtml(server.dns_name || server.hostname)}`
-            : `${escapeHtml(server.host)}:${escapeHtml(server.port)}`;
           const tags = (server.tags || []).map((tag) => `<span class="badge tag">${escapeHtml(tag)}</span>`).join("");
+          const address = formatAddress(server);
 
           return `
             <article class="server-card ${offlineClass}" data-server-card="${escapeHtml(server.id)}">
@@ -885,9 +936,9 @@
               </div>
 
               <div class="card-meta">
-                <span>${address}</span>
+                <span class="meta-address" title="${escapeHtml(address)}">${escapeHtml(address)}</span>
                 <span class="sep">·</span>
-                <span class="editable" data-edit-type="user" data-server-id="${escapeHtml(server.id)}">${escapeHtml(edit.user)}</span>
+                <span class="editable" data-edit-type="user" data-server-id="${escapeHtml(server.id)}" title="${escapeHtml(edit.user)}">${escapeHtml(edit.user)}</span>
                 <span class="sep">·</span>
                 <select class="meta-select" data-server-id="${escapeHtml(server.id)}">
                   <option value="resume" ${edit.mode === "resume" ? "selected" : ""}>恢复会话</option>
@@ -895,11 +946,13 @@
                   <option value="direct" ${edit.mode === "direct" ? "selected" : ""}>直接连接</option>
                 </select>
                 <span class="sep mode-extra" style="display:${showSession ? "inline" : "none"}">·</span>
-                <span class="editable mode-extra" data-edit-type="session" data-server-id="${escapeHtml(server.id)}" style="display:${showSession ? "inline" : "none"}">${escapeHtml(edit.session)}</span>
+                <span class="editable mode-extra" data-edit-type="session" data-server-id="${escapeHtml(server.id)}" style="display:${showSession ? "inline" : "none"}" title="${escapeHtml(edit.session)}">${escapeHtml(edit.session)}</span>
               </div>
 
               <div class="card-footer">
-                <div class="command" data-command="${escapeHtml(server.id)}" title="点击复制，双击展开/折叠">${escapeHtml(getCommandForServer(server.id))}</div>
+                <div class="command" data-command="${escapeHtml(server.id)}" title="点击复制，双击展开/折叠">
+                  ${escapeHtml(getCommandForServer(server.id))}
+                </div>
                 <div class="button-row">
                   <button class="button" data-copy-button="${escapeHtml(server.id)}">复制</button>
                   <button class="button launcher-btn" data-launcher="${escapeHtml(server.id)}">打开终端</button>
