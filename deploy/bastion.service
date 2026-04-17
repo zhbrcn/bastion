@@ -12,6 +12,8 @@ Environment="PATH=/opt/bastion/venv/bin:/usr/bin:/bin"
 Environment="PYTHONUNBUFFERED=1"
 ExecStart=/opt/bastion/venv/bin/gunicorn \
     --workers 2 \
+    --worker-class gthread \
+    --threads 8 \
     --bind 127.0.0.1:8000 \
     --access-logfile - \
     --error-logfile - \

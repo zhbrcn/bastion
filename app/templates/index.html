@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
   <style>
     :root {
       color-scheme: dark light;
@@ -87,6 +88,7 @@
       background: #0b0f14; color: #d7e3f4; border: 1px solid var(--border); border-radius: 4px; padding: 12px;
       overflow: auto; font-family: var(--font-code); font-size: 13px; white-space: pre-wrap;
     }
+    #terminal-mount { width: 100%; height: 100%; min-height: 420px; }
     .terminal-input-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; }
     @media (max-width: 980px) {
       .page { padding: 16px; } .server-head { display: none; } .server-row { grid-template-columns: 1fr; gap: 10px; }
@@ -184,7 +186,7 @@
         <div><div id="terminal-title" style="font-weight:600;">WebSSH</div><div class="hint" id="terminal-command"></div></div>
         <button class="button" id="close-terminal" type="button">关闭</button>
       </div>
-      <pre class="terminal-screen" id="terminal-screen"></pre>
+      <div class="terminal-screen"><div id="terminal-mount"></div></div>
       <div>
         <div class="hint">输入命令后发送。Ctrl+C 可用快捷按钮发送。</div>
         <div class="terminal-input-row">
@@ -197,10 +199,11 @@
     </section>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
   <script>
     (() => {
       const fallbackInterval = {{ refresh_interval|tojson }};
-      const state = { data: null, search: "", activeTag: "", lastFetchedAt: 0, refreshTimer: null, tickTimer: null, manualServers: [], editingManualId: "", terminalSessionId: "", terminalPoller: null };
+      const state = { data: null, search: "", activeTag: "", lastFetchedAt: 0, refreshTimer: null, tickTimer: null, manualServers: [], editingManualId: "", terminalSocket: null, terminalInstance: null };
       const el = {
         pageTitle: document.getElementById("page-title"), pageSubtitle: document.getElementById("page-subtitle"),
         summaryTotal: document.getElementById("summary-total"), summaryOnline: document.getElementById("summary-online"),
@@ -219,7 +222,7 @@
         manualNote: document.getElementById("manual-note"), saveManual: document.getElementById("save-manual"),
         resetManual: document.getElementById("reset-manual"), terminalWrap: document.getElementById("terminal-wrap"),
         terminalTitle: document.getElementById("terminal-title"), terminalCommand: document.getElementById("terminal-command"),
-        terminalScreen: document.getElementById("terminal-screen"), terminalInput: document.getElementById("terminal-input"),
+        terminalMount: document.getElementById("terminal-mount"), terminalInput: document.getElementById("terminal-input"),
         terminalSend: document.getElementById("terminal-send"), terminalEnter: document.getElementById("terminal-enter"),
         terminalCtrlc: document.getElementById("terminal-ctrlc"), closeTerminal: document.getElementById("close-terminal"),
       };
@@ -523,67 +526,54 @@
       async function openTerminal(serverId) {
         const server = state.data.servers.find((item) => item.id === serverId);
         if (!server) return;
-        const response = await fetch("/api/terminal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ server_id: serverId }),
-        });
-        const payload = await response.json();
-        if (!response.ok || !payload.ok) {
-          alert(payload.error || "无法打开 WebSSH");
+        await closeTerminal();
+        if (!window.Terminal) {
+          alert("浏览器终端资源加载失败");
           return;
         }
-        state.terminalSessionId = payload.session_id;
-        el.terminalTitle.textContent = `WebSSH（简化终端）· ${server.display_name}`;
-        el.terminalCommand.textContent = payload.command;
-        el.terminalScreen.textContent = payload.output || "";
+        state.terminalInstance = new window.Terminal({
+          cursorBlink: true,
+          convertEol: true,
+          scrollback: 5000,
+          theme: { background: "#0b0f14", foreground: "#d7e3f4" },
+        });
+        el.terminalMount.innerHTML = "";
+        state.terminalInstance.open(el.terminalMount);
+        el.terminalTitle.textContent = `WebSSH · ${server.display_name}`;
+        el.terminalCommand.textContent = server.command;
         el.terminalWrap.classList.add("visible");
-        startTerminalPolling();
-        await pollTerminal();
-      }
+        state.terminalInstance.writeln(`Connecting to ${server.display_name} ...`);
 
-      async function pollTerminal() {
-        if (!state.terminalSessionId) return;
-        const response = await fetch(`/api/terminal/${encodeURIComponent(state.terminalSessionId)}`, { cache: "no-store" });
-        const payload = await response.json();
-        if (!response.ok || !payload.ok) return;
-        if (payload.output) {
-          el.terminalScreen.textContent += payload.output;
-          el.terminalScreen.scrollTop = el.terminalScreen.scrollHeight;
-        }
-        if (payload.closed) stopTerminalPolling();
-      }
-
-      function startTerminalPolling() {
-        stopTerminalPolling();
-        state.terminalPoller = window.setInterval(pollTerminal, 500);
-      }
-
-      function stopTerminalPolling() {
-        if (state.terminalPoller) {
-          clearInterval(state.terminalPoller);
-          state.terminalPoller = null;
-        }
+        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+        const socket = new WebSocket(`${protocol}://${window.location.host}/ws/terminal/${encodeURIComponent(serverId)}`);
+        socket.addEventListener("message", (event) => {
+          if (state.terminalInstance) state.terminalInstance.write(event.data);
+        });
+        socket.addEventListener("close", () => {
+          if (state.terminalInstance) state.terminalInstance.writeln("\r\n[session closed]");
+        });
+        socket.addEventListener("error", () => {
+          if (state.terminalInstance) state.terminalInstance.writeln("\r\n[websocket error]");
+        });
+        state.terminalSocket = socket;
       }
 
       async function sendTerminalInput(data) {
-        if (!state.terminalSessionId) return;
-        await fetch(`/api/terminal/${encodeURIComponent(state.terminalSessionId)}/input`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data }),
-        });
-        await pollTerminal();
+        if (!state.terminalSocket || state.terminalSocket.readyState !== WebSocket.OPEN) return;
+        state.terminalSocket.send(data);
       }
 
       async function closeTerminal() {
-        if (state.terminalSessionId) {
-          await fetch(`/api/terminal/${encodeURIComponent(state.terminalSessionId)}`, { method: "DELETE" });
+        if (state.terminalSocket) {
+          state.terminalSocket.close();
         }
-        state.terminalSessionId = "";
-        stopTerminalPolling();
+        state.terminalSocket = null;
+        if (state.terminalInstance) {
+          state.terminalInstance.dispose();
+        }
+        state.terminalInstance = null;
         el.terminalWrap.classList.remove("visible");
-        el.terminalScreen.textContent = "";
+        el.terminalMount.innerHTML = "";
       }
 
       function bindEvents() {

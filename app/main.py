@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import logging
+import os
+import pty
+import select
 import shlex
+import signal
 import socket
+import subprocess
+import threading
 from typing import Any
 
 from flask import Flask, Response, jsonify, render_template, request
+from flask_sock import Sock
 
 from auth_watcher import clear_auth_url, get_pending_auth_urls
 from config_loader import (
@@ -28,6 +35,7 @@ logging.basicConfig(
 )
 
 app = Flask(__name__)
+sock = Sock(app)
 terminals = TerminalManager()
 
 
@@ -106,10 +114,19 @@ def _build_server_command(server: dict[str, Any], settings: dict[str, Any]) -> s
 def _build_terminal_command(server: dict[str, Any], settings: dict[str, Any]) -> str:
     """Build a server-side command for the web terminal session."""
     if server["source"] == "tailscale":
-        return f"bastion-ssh {shlex.quote(server['hostname'])} {shlex.quote(server['user'])}"
+        session_name = f"{settings.get('defaults', {}).get('tmux_prefix', '')}{server['hostname']}"
+        return (
+            "tmux new-session -A -s "
+            f"{shlex.quote(session_name)} "
+            f"bastion-ssh {shlex.quote(server['hostname'])} {shlex.quote(server['user'])}"
+        )
 
+    session_name = server.get("session_name") or server["hostname"]
     port = int(server.get("port", 22))
-    return f"ssh -tt -p {port} {shlex.quote(server['user'])}@{shlex.quote(server['host'])}"
+    return (
+        f"ssh -tt -p {port} {shlex.quote(server['user'])}@{shlex.quote(server['host'])} "
+        f"{shlex.quote('tmux new-session -A -s ' + shlex.quote(session_name))}"
+    )
 
 
 def _collect_servers() -> dict[str, Any]:
@@ -199,6 +216,76 @@ def _find_server(server_id: str) -> tuple[dict[str, Any] | None, dict[str, Any]]
 def _json_payload() -> dict[str, Any]:
     """Return the current panel payload."""
     return _collect_servers()
+
+
+def _stream_terminal_output(ws: Any, master_fd: int, process: Any) -> None:
+    """Read from a PTY and forward raw bytes to the websocket."""
+    try:
+        while process.poll() is None:
+            ready, _, _ = select.select([master_fd], [], [], 0.2)
+            if not ready:
+                continue
+            data = os.read(master_fd, 4096)
+            if not data:
+                break
+            ws.send(data.decode("utf-8", errors="replace"))
+    except OSError:
+        pass
+
+
+@sock.route("/ws/terminal/<path:server_id>")
+def ws_terminal(ws: Any, server_id: str) -> None:
+    """Run a full interactive terminal session over websocket."""
+    server, settings = _find_server(server_id)
+    if server is None:
+        ws.send("\r\n[error] server not found\r\n")
+        return
+
+    master_fd, slave_fd = pty.openpty()
+    env = os.environ.copy()
+    env.setdefault("TERM", "xterm-256color")
+    env.setdefault("COLORTERM", "truecolor")
+
+    process = None
+    try:
+        process = subprocess.Popen(  # type: ignore[name-defined]
+            ["/bin/bash", "-lc", _build_terminal_command(server, settings)],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            close_fds=True,
+            preexec_fn=os.setsid,
+            env=env,
+        )
+        os.close(slave_fd)
+
+        thread = threading.Thread(
+            target=_stream_terminal_output,
+            args=(ws, master_fd, process),
+            daemon=True,
+        )
+        thread.start()
+
+        while True:
+            message = ws.receive()
+            if message is None:
+                break
+            if isinstance(message, str):
+                os.write(master_fd, message.encode("utf-8"))
+    finally:
+        try:
+            os.close(master_fd)
+        except OSError:
+            pass
+        try:
+            os.close(slave_fd)
+        except OSError:
+            pass
+        if process is not None and process.poll() is None:
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            except OSError:
+                pass
 
 
 @app.route("/")
