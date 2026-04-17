@@ -147,7 +147,7 @@ if ($params.via -eq "tailscale") {
 # 优先用 Windows Terminal
 $wt = Get-Command wt.exe -ErrorAction SilentlyContinue
 if ($wt) {
-    $wtArgs = @("new-tab", "--title", $params.host, "ssh") + $sshArgs
+    $wtArgs = @("new-tab", "--title", $params.host, "--", "ssh") + $sshArgs
     Start-Process wt.exe -ArgumentList $wtArgs
 } else {
     Start-Process ssh -ArgumentList $sshArgs

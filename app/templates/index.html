@@ -238,11 +238,6 @@
       border-color: rgba(210, 153, 34, 0.35);
     }
 
-    .badge.active {
-      color: var(--success);
-      border-color: rgba(63, 185, 80, 0.35);
-    }
-
     .badge.tag {
       color: var(--text);
     }
@@ -357,7 +352,7 @@
 
     .card-footer .button-row {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
       width: 100%;
     }
@@ -378,7 +373,7 @@
     }
 
     .dot.online { background: var(--success); }
-    .dot.offline { background: var(--muted); }
+    .dot.offline { background: var(--danger); }
     .dot.pending { background: var(--warning); }
 
     .terminal-wrap, .overlay {
@@ -932,7 +927,6 @@
                 <strong class="card-title">${escapeHtml(server.display_name)}</strong>
                 <span class="badge source-${server.source}">${escapeHtml(sourceLabel)}</span>
                 ${tags}
-                ${server.tmux_session_exists ? '<span class="badge active">● 活跃</span>' : ""}
               </div>
 
               <div class="card-meta">
@@ -950,11 +944,10 @@
               </div>
 
               <div class="card-footer">
-                <div class="command" data-command="${escapeHtml(server.id)}" title="点击复制，双击展开/折叠">
+                <div class="command" data-command="${escapeHtml(server.id)}" title="点击复制">
                   ${escapeHtml(getCommandForServer(server.id))}
                 </div>
                 <div class="button-row">
-                  <button class="button" data-copy-button="${escapeHtml(server.id)}">复制</button>
                   <button class="button launcher-btn" data-launcher="${escapeHtml(server.id)}">打开终端</button>
                   <button class="button primary webssh-btn" data-webssh="${escapeHtml(server.id)}">WebSSH</button>
                 </div>
@@ -972,28 +965,9 @@
           });
         });
 
-        el.serverGrid.querySelectorAll("[data-copy-button]").forEach((button) => {
-          button.addEventListener("click", async () => {
-            const id = button.getAttribute("data-copy-button");
-            const commandEl = el.serverGrid.querySelector(`[data-command="${CSS.escape(id)}"]`);
-            if (!commandEl) return;
-            await copyCommand(commandEl);
-          });
-        });
-
         el.serverGrid.querySelectorAll("[data-command]").forEach((commandEl) => {
-          let clickTimer = null;
-          commandEl.addEventListener("click", () => {
-            if (clickTimer) {
-              clearTimeout(clickTimer);
-              clickTimer = null;
-              commandEl.classList.toggle("expanded");
-            } else {
-              clickTimer = setTimeout(() => {
-                clickTimer = null;
-                copyCommand(commandEl);
-              }, 220);
-            }
+          commandEl.addEventListener("click", async () => {
+            await copyCommand(commandEl);
           });
         });
 
