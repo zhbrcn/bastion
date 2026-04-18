@@ -73,7 +73,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "Set-Item -Path $protocol -Value 'URL:Bastion Protocol';" ^
   "New-ItemProperty -Path $protocol -Name 'URL Protocol' -Value '' -PropertyType String -Force | Out-Null;" ^
   "New-Item -Path $command -Force | Out-Null;" ^
-  "$open = '""' + $launcher + '"" ""%%1""';" ^
+  "$percent = [char]37;" ^
+  "$open = '""' + $launcher + '"" ""' + $percent + '1""';" ^
   "Set-Item -Path $command -Value $open;" || goto :fail
 
 echo.
