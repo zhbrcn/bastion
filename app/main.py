@@ -263,10 +263,10 @@ while ($true) {
 }
 """
 
-AGENT_VBS = r"""Set shell = CreateObject("WScript.Shell")
+AGENT_VBS = r'''Set shell = CreateObject("WScript.Shell")
 ps1 = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%\bastion\bastion-agent.ps1")
 shell.Run "powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -NoProfile -File """ & ps1 & """", 0, False
-"""
+'''
 
 AGENT_INSTALL_BAT = r"""@echo off
 setlocal
