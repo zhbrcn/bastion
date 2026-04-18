@@ -159,10 +159,18 @@ if ($params.via -eq "tailscale") {
 $sshCmd = 'ssh ' + (($sshArgs | ForEach-Object { Quote-Arg $_ }) -join ' ')
 
 # 优先用 Tabby CLI
+$tabbyExe = $null
 $tabbyCmd = Get-Command tabby.exe -ErrorAction SilentlyContinue
 if ($tabbyCmd) {
+    $tabbyExe = $tabbyCmd.Source
+}
+if (-not $tabbyExe -and (Test-Path "$env:USERPROFILE\scoop\apps\tabby\current\Tabby.exe")) {
+    $tabbyExe = "$env:USERPROFILE\scoop\apps\tabby\current\Tabby.exe"
+}
+if ($tabbyExe) {
     try {
-        Start-Process $tabbyCmd.Source -ArgumentList @("run", "ssh") + $sshArgs
+        $tabbyArgs = @("run", "ssh") + $sshArgs
+        Start-Process $tabbyExe -ArgumentList $tabbyArgs
         exit 0
     } catch {
         # Fall through to protocol or Windows Terminal if Tabby CLI launch fails.
