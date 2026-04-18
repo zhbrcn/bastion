@@ -158,7 +158,18 @@ if ($params.via -eq "tailscale") {
 # 组装成单条 ssh 命令
 $sshCmd = 'ssh ' + (($sshArgs | ForEach-Object { Quote-Arg $_ }) -join ' ')
 
-# 优先用 Tabby
+# 优先用 Tabby CLI
+$tabbyCmd = Get-Command tabby.exe -ErrorAction SilentlyContinue
+if ($tabbyCmd) {
+    try {
+        Start-Process $tabbyCmd.Source -ArgumentList @("run", "ssh") + $sshArgs
+        exit 0
+    } catch {
+        # Fall through to protocol or Windows Terminal if Tabby CLI launch fails.
+    }
+}
+
+# 次选 Tabby 协议
 $tabbyProtocol = Get-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\Software\Classes\tabby' -ErrorAction SilentlyContinue
 if (-not $tabbyProtocol) {
     $tabbyProtocol = Get-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\Software\Classes\tabby' -ErrorAction SilentlyContinue
@@ -169,7 +180,7 @@ if ($tabbyProtocol) {
         Start-Process $tabbyUrl
         exit 0
     } catch {
-        # Fall through to Windows Terminal if Tabby launch fails.
+        # Fall through to Windows Terminal if the protocol launch fails.
     }
 }
 
@@ -197,8 +208,9 @@ Your browser may ask whether this site can open the bastion:// protocol.
 Choose Allow, and optionally enable Always allow.
 
 Behavior:
-- If Tabby is installed and the tabby:// protocol is registered, Bastion opens Tabby first.
-- Otherwise Bastion falls back to Windows Terminal.
+- If Tabby is available on PATH, Bastion opens Tabby first.
+- Otherwise, if the tabby:// protocol is registered, Bastion opens Tabby that way.
+- If neither Tabby path nor protocol is available, Bastion falls back to Windows Terminal.
 - If Windows Terminal is not available, Bastion falls back to cmd.exe.
 
 Requirements:
