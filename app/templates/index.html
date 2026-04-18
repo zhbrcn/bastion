@@ -1047,7 +1047,7 @@
             let agentOk = false;
             try {
               const ac = new AbortController();
-              const timer = setTimeout(() => ac.abort(), 1500);
+              const timer = setTimeout(() => ac.abort(), 4000);
               const response = await fetch(
                 `http://127.0.0.1:18722/launch?${params.toString()}`,
                 { mode: "cors", cache: "no-store", signal: ac.signal }

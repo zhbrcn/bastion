@@ -155,10 +155,15 @@ function Launch-Terminal($h, $sshCmd) {
     [System.IO.File]::WriteAllText($bat, $body, [System.Text.Encoding]::Default)
     Write-AgentLog "Launch: $sshCmd (bat=$bat)"
     $wt = Get-Command wt.exe -ErrorAction SilentlyContinue
-    if ($wt) {
-        Start-Process -FilePath 'wt.exe' -ArgumentList "-w 0 nt --title `"$h`" cmd /k `"$bat`""
-    } else {
-        Start-Process -FilePath 'cmd.exe' -ArgumentList "/k `"$bat`""
+    try {
+        if ($wt) {
+            Start-Process -FilePath 'wt.exe' -ArgumentList "--title `"$h`" cmd /k `"$bat`""
+        } else {
+            Start-Process -FilePath 'cmd.exe' -ArgumentList "/k `"$bat`""
+        }
+    } catch {
+        Write-AgentLog "Start-Process failed: $($_.Exception.Message); falling back to cmd.exe"
+        try { Start-Process -FilePath 'cmd.exe' -ArgumentList "/k `"$bat`"" } catch {}
     }
 }
 
@@ -205,6 +210,8 @@ while ($true) {
         $status = '200 OK'
         $bodyText = ''
         $shouldQuit = $false
+        $pendingHost = $null
+        $pendingCmd = $null
 
         if ($method -eq 'OPTIONS') {
             $status = '204 No Content'
@@ -230,15 +237,9 @@ while ($true) {
                 $bodyText = 'invalid params'
                 Write-AgentLog "Reject: bad params host=$h user=$u session=$s port=$p jumpbox=$j"
             } else {
-                $sshCmd = Build-SshCommand $via $mode $h $u $s $j $p
-                try {
-                    Launch-Terminal $h $sshCmd
-                    $bodyText = 'ok'
-                } catch {
-                    $status = '500 Internal Server Error'
-                    $bodyText = 'launch failed: ' + $_.Exception.Message
-                    Write-AgentLog "Launch exception: $($_.Exception.Message)"
-                }
+                $pendingHost = $h
+                $pendingCmd = Build-SshCommand $via $mode $h $u $s $j $p
+                $bodyText = 'ok'
             }
         } else {
             $status = '404 Not Found'
@@ -252,6 +253,7 @@ while ($true) {
             "Access-Control-Allow-Methods: GET, OPTIONS",
             "Access-Control-Allow-Headers: *",
             "Access-Control-Allow-Private-Network: true",
+            "Access-Control-Max-Age: 600",
             "Vary: Origin",
             "Content-Type: text/plain; charset=utf-8",
             "Content-Length: $($bodyBytes.Length)",
@@ -262,9 +264,15 @@ while ($true) {
         $stream.Write($headerBytes, 0, $headerBytes.Length)
         if ($bodyBytes.Length -gt 0) { $stream.Write($bodyBytes, 0, $bodyBytes.Length) }
         $stream.Flush()
+        try { $client.Close() } catch {}
+        $client = $null
+
+        if ($pendingHost) {
+            try { Launch-Terminal $pendingHost $pendingCmd }
+            catch { Write-AgentLog "Launch exception: $($_.Exception.Message)" }
+        }
 
         if ($shouldQuit) {
-            try { $client.Close() } catch {}
             Write-AgentLog "Quit requested"
             $listener.Stop()
             exit 0
