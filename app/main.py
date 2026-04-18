@@ -169,54 +169,19 @@ if ($params.via -eq "tailscale") {
 $sshCmd = 'ssh ' + (($sshArgs | ForEach-Object { Quote-Arg $_ }) -join ' ')
 Write-LauncherLog "Resolved ssh command: $sshCmd"
 
-# Prefer Tabby only for official SSH quick connect flows.
-$tabbyExe = $null
-if (Test-Path "$env:USERPROFILE\scoop\apps\tabby\current\Tabby.exe") {
-    $tabbyExe = "$env:USERPROFILE\scoop\apps\tabby\current\Tabby.exe"
-}
-if (-not $tabbyExe) {
-    $tabbyCmd = Get-Command tabby.exe -ErrorAction SilentlyContinue
-    if ($tabbyCmd) {
-        $tabbyExe = $tabbyCmd.Source
-    }
-}
-if ($tabbyExe) {
-    if ($params.via -ne 'tailscale') {
-        try {
-            $quickConnect = $params.host
-            if (-not [string]::IsNullOrWhiteSpace($params.user) -and $params.user -ne 'root') {
-                $quickConnect = "$($params.user)@$quickConnect"
-            }
-            if ($params.port -and $params.port -ne '22') {
-                $quickConnect = "${quickConnect}:$($params.port)"
-            }
-            Write-LauncherLog "Launching Tabby executable: $tabbyExe"
-            Write-LauncherLog "Launching Tabby quickConnect: $quickConnect"
-            Start-Process $tabbyExe -ArgumentList @('quickConnect', 'ssh', $quickConnect)
-            exit 0
-        } catch {
-            Write-LauncherLog "Tabby quickConnect launch failed: $($_.Exception.Message)"
-            # Fall through to Windows Terminal if Tabby launch fails.
-        }
-    } else {
-        Write-LauncherLog "Skipping Tabby for tailscale flow; official quickConnect only supports host/user/port."
-    }
-}
-
-# Fall back to Windows Terminal
 $wt = Get-Command wt.exe -ErrorAction SilentlyContinue
 if ($wt) {
-    Write-LauncherLog "Falling back to Windows Terminal"
+    Write-LauncherLog "Launching Windows Terminal"
     $wtArgs = @("new-tab", "--title", $params.host, "cmd", "/k", $sshCmd)
     Start-Process wt.exe -ArgumentList $wtArgs
 } else {
-    Write-LauncherLog "Falling back to cmd.exe"
+    Write-LauncherLog "wt.exe not found, falling back to cmd.exe"
     Start-Process cmd.exe -ArgumentList @("/k", $sshCmd)
 }
 """
 
 LAUNCHER_README = r"""Bastion Windows Launcher
-This package lets the browser open your terminal directly from the Bastion panel.
+This package lets the browser open Windows Terminal directly from the Bastion panel.
 
 Install:
 1. Extract all files to any folder.
@@ -229,14 +194,13 @@ Your browser may ask whether this site can open the bastion:// protocol.
 Choose Allow, and optionally enable Always allow.
 
 Behavior:
-- For direct SSH targets, Bastion uses Tabby quickConnect when Tabby is available.
-- For bastion/tailscale jumpbox flows, Bastion falls back to Windows Terminal because Tabby quickConnect only supports host/user/port.
-- If Windows Terminal is not available, Bastion falls back to cmd.exe.
+- Launches Windows Terminal (wt.exe) with the SSH command.
+- If wt.exe is not found, falls back to cmd.exe.
 
 Requirements:
 - Windows 10 or Windows 11
 - OpenSSH client installed
-- Tabby or Windows Terminal recommended
+- Windows Terminal recommended
 
 Uninstall:
 - Delete HKCU\Software\Classes\bastion
