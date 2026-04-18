@@ -99,8 +99,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bastion-launcher.ps1" 
 
 LAUNCHER_EXECUTOR_PS1 = r"""param([string]$Url)
 
-# Parse bastion://connect?...
-if ($Url -notmatch '^bastion://connect\?(.+)$') {
+# Parse bastion://connect?... and bastion://connect/?...
+if ($Url -notmatch '^bastion://connect/?\?(.+)$') {
     Write-Host "Invalid URL: $Url"
     Read-Host "Press Enter to exit"
     exit 1
