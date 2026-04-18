@@ -155,10 +155,25 @@ if ($params.via -eq "tailscale") {
     }
 }
 
-# 组装成单条 ssh 命令，交给终端里的 cmd /k 执行
+# 组装成单条 ssh 命令
 $sshCmd = 'ssh ' + (($sshArgs | ForEach-Object { Quote-Arg $_ }) -join ' ')
 
-# 优先用 Windows Terminal
+# 优先用 Tabby
+$tabbyProtocol = Get-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\Software\Classes\tabby' -ErrorAction SilentlyContinue
+if (-not $tabbyProtocol) {
+    $tabbyProtocol = Get-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\Software\Classes\tabby' -ErrorAction SilentlyContinue
+}
+if ($tabbyProtocol) {
+    $tabbyUrl = 'tabby://run?command=' + [System.Uri]::EscapeDataString($sshCmd)
+    try {
+        Start-Process $tabbyUrl
+        exit 0
+    } catch {
+        # Fall through to Windows Terminal if Tabby launch fails.
+    }
+}
+
+# 回退到 Windows Terminal
 $wt = Get-Command wt.exe -ErrorAction SilentlyContinue
 if ($wt) {
     $wtArgs = @("new-tab", "--title", $params.host, "cmd", "/k", $sshCmd)
@@ -169,7 +184,7 @@ if ($wt) {
 """
 
 LAUNCHER_README = r"""Bastion Windows Launcher
-This package lets the browser open Windows Terminal directly from the Bastion panel.
+This package lets the browser open your terminal directly from the Bastion panel.
 
 Install:
 1. Extract all files to any folder.
@@ -181,10 +196,15 @@ First use:
 Your browser may ask whether this site can open the bastion:// protocol.
 Choose Allow, and optionally enable Always allow.
 
+Behavior:
+- If Tabby is installed and the tabby:// protocol is registered, Bastion opens Tabby first.
+- Otherwise Bastion falls back to Windows Terminal.
+- If Windows Terminal is not available, Bastion falls back to cmd.exe.
+
 Requirements:
 - Windows 10 or Windows 11
 - OpenSSH client installed
-- Windows Terminal recommended
+- Tabby or Windows Terminal recommended
 
 Uninstall:
 - Delete HKCU\Software\Classes\bastion
