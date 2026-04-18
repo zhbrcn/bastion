@@ -169,7 +169,7 @@ if ($params.via -eq "tailscale") {
 $sshCmd = 'ssh ' + (($sshArgs | ForEach-Object { Quote-Arg $_ }) -join ' ')
 Write-LauncherLog "Resolved ssh command: $sshCmd"
 
-# Prefer launching Tabby directly and pass a tabby:// URL as the argument
+# Prefer Tabby only for official SSH quick connect flows.
 $tabbyExe = $null
 if (Test-Path "$env:USERPROFILE\scoop\apps\tabby\current\Tabby.exe") {
     $tabbyExe = "$env:USERPROFILE\scoop\apps\tabby\current\Tabby.exe"
@@ -181,32 +181,25 @@ if (-not $tabbyExe) {
     }
 }
 if ($tabbyExe) {
-    try {
-        $tabbyUrl = 'tabby://run?command=' + [System.Uri]::EscapeDataString($sshCmd)
-        Write-LauncherLog "Launching Tabby executable: $tabbyExe"
-        Write-LauncherLog "Launching Tabby URL argument: $tabbyUrl"
-        Start-Process $tabbyExe -ArgumentList @($tabbyUrl)
-        exit 0
-    } catch {
-        Write-LauncherLog "Tabby executable launch failed: $($_.Exception.Message)"
-        # Fall through to protocol or Windows Terminal if Tabby launch fails.
-    }
-}
-
-# Next: try the Tabby protocol
-$tabbyProtocol = Get-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\Software\Classes\tabby' -ErrorAction SilentlyContinue
-if (-not $tabbyProtocol) {
-    $tabbyProtocol = Get-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\Software\Classes\tabby' -ErrorAction SilentlyContinue
-}
-if ($tabbyProtocol) {
-    $tabbyUrl = 'tabby://run?command=' + [System.Uri]::EscapeDataString($sshCmd)
-    try {
-        Write-LauncherLog "Launching Tabby protocol URL: $tabbyUrl"
-        Start-Process $tabbyUrl
-        exit 0
-    } catch {
-        Write-LauncherLog "Tabby protocol launch failed: $($_.Exception.Message)"
-        # Fall through to Windows Terminal if the protocol launch fails.
+    if ($params.via -ne 'tailscale') {
+        try {
+            $quickConnect = $params.host
+            if (-not [string]::IsNullOrWhiteSpace($params.user) -and $params.user -ne 'root') {
+                $quickConnect = "$($params.user)@$quickConnect"
+            }
+            if ($params.port -and $params.port -ne '22') {
+                $quickConnect = "$quickConnect:$($params.port)"
+            }
+            Write-LauncherLog "Launching Tabby executable: $tabbyExe"
+            Write-LauncherLog "Launching Tabby quickConnect: $quickConnect"
+            Start-Process $tabbyExe -ArgumentList @('quickConnect', 'ssh', $quickConnect)
+            exit 0
+        } catch {
+            Write-LauncherLog "Tabby quickConnect launch failed: $($_.Exception.Message)"
+            # Fall through to Windows Terminal if Tabby launch fails.
+        }
+    } else {
+        Write-LauncherLog "Skipping Tabby for tailscale flow; official quickConnect only supports host/user/port."
     }
 }
 
@@ -236,9 +229,8 @@ Your browser may ask whether this site can open the bastion:// protocol.
 Choose Allow, and optionally enable Always allow.
 
 Behavior:
-- If Tabby is available on PATH, Bastion opens Tabby first.
-- Otherwise, if the tabby:// protocol is registered, Bastion opens Tabby that way.
-- If neither Tabby path nor protocol is available, Bastion falls back to Windows Terminal.
+- For direct SSH targets, Bastion uses Tabby quickConnect when Tabby is available.
+- For bastion/tailscale jumpbox flows, Bastion falls back to Windows Terminal because Tabby quickConnect only supports host/user/port.
 - If Windows Terminal is not available, Bastion falls back to cmd.exe.
 
 Requirements:
