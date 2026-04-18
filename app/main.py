@@ -121,6 +121,14 @@ foreach ($pair in $query -split '&') {
     }
 }
 
+$logPath = Join-Path $env:LOCALAPPDATA 'bastion\launcher.log'
+New-Item -ItemType Directory -Force -Path (Split-Path $logPath) | Out-Null
+function Write-LauncherLog {
+    param([string]$Message)
+    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    Add-Content -Path $logPath -Value "[$timestamp] $Message"
+}
+
 function Quote-Arg {
     param([string]$Value)
     if ([string]::IsNullOrEmpty($Value)) {
@@ -157,8 +165,9 @@ if ($params.via -eq "tailscale") {
 
 # 组装成单条 ssh 命令
 $sshCmd = 'ssh ' + (($sshArgs | ForEach-Object { Quote-Arg $_ }) -join ' ')
+Write-LauncherLog "Resolved ssh command: $sshCmd"
 
-# 优先用 Tabby CLI
+# 优先直接调用 Tabby 并把 tabby:// URL 作为参数传入
 $tabbyExe = $null
 $tabbyCmd = Get-Command tabby.exe -ErrorAction SilentlyContinue
 if ($tabbyCmd) {
@@ -169,10 +178,13 @@ if (-not $tabbyExe -and (Test-Path "$env:USERPROFILE\scoop\apps\tabby\current\Ta
 }
 if ($tabbyExe) {
     try {
-        $tabbyArgs = @("run", "ssh") + $sshArgs
-        Start-Process $tabbyExe -ArgumentList $tabbyArgs
+        $tabbyUrl = 'tabby://run?command=' + [System.Uri]::EscapeDataString($sshCmd)
+        Write-LauncherLog "Launching Tabby executable: $tabbyExe"
+        Write-LauncherLog "Launching Tabby URL argument: $tabbyUrl"
+        Start-Process $tabbyExe -ArgumentList @($tabbyUrl)
         exit 0
     } catch {
+        Write-LauncherLog "Tabby executable launch failed: $($_.Exception.Message)"
         # Fall through to protocol or Windows Terminal if Tabby CLI launch fails.
     }
 }
@@ -185,9 +197,11 @@ if (-not $tabbyProtocol) {
 if ($tabbyProtocol) {
     $tabbyUrl = 'tabby://run?command=' + [System.Uri]::EscapeDataString($sshCmd)
     try {
+        Write-LauncherLog "Launching Tabby protocol URL: $tabbyUrl"
         Start-Process $tabbyUrl
         exit 0
     } catch {
+        Write-LauncherLog "Tabby protocol launch failed: $($_.Exception.Message)"
         # Fall through to Windows Terminal if the protocol launch fails.
     }
 }
@@ -195,9 +209,11 @@ if ($tabbyProtocol) {
 # 回退到 Windows Terminal
 $wt = Get-Command wt.exe -ErrorAction SilentlyContinue
 if ($wt) {
+    Write-LauncherLog "Falling back to Windows Terminal"
     $wtArgs = @("new-tab", "--title", $params.host, "cmd", "/k", $sshCmd)
     Start-Process wt.exe -ArgumentList $wtArgs
 } else {
+    Write-LauncherLog "Falling back to cmd.exe"
     Start-Process cmd.exe -ArgumentList @("/k", $sshCmd)
 }
 """
