@@ -577,12 +577,16 @@
       </section>
 
       <section class="section">
-        <div style="font-weight: 600;">Windows 终端</div>
+        <div style="font-weight: 600;">Windows 一键连接</div>
         <div class="hint">
-          点击服务器卡片上的“打开终端”按钮，浏览器会下载一个几百字节的 .bat，
-          双击即可用 Windows Terminal（或 cmd）启动 SSH。零安装，不碰注册表。
+          推荐：下载 Agent 包，双击 install-agent.bat 一次（无需管理员），
+          之后点击“打开终端”直接在本机启动 Windows Terminal，不再下载任何文件。
+          没装 Agent 也没关系，按钮会自动回落为下载 .bat 双击。
         </div>
         <div class="settings-actions">
+          <a class="button primary" href="/api/agent-setup" download>
+            下载 Bastion Agent（一次安装）
+          </a>
           <a class="button" href="/api/batch-download" download>
             下载全部 .bat 文件包（可选）
           </a>
@@ -1037,6 +1041,25 @@
             if (isAndroidMobile()) {
               showToast("正在打开 Bastion Bridge…");
               window.location.href = `bastion://connect?${params.toString()}`;
+              return;
+            }
+
+            let agentOk = false;
+            try {
+              const ac = new AbortController();
+              const timer = setTimeout(() => ac.abort(), 1500);
+              const response = await fetch(
+                `http://127.0.0.1:18722/launch?${params.toString()}`,
+                { mode: "cors", cache: "no-store", signal: ac.signal }
+              );
+              clearTimeout(timer);
+              agentOk = response.ok;
+            } catch (err) {
+              agentOk = false;
+            }
+
+            if (agentOk) {
+              showToast("已在 Windows Terminal 打开");
             } else {
               const a = document.createElement("a");
               a.href = `/api/launch?${params.toString()}`;
@@ -1044,7 +1067,7 @@
               document.body.appendChild(a);
               a.click();
               a.remove();
-              showToast("已下载启动脚本，双击即可连接");
+              showToast("Agent 未运行，已下载 .bat（双击即可连接）");
             }
           });
         });

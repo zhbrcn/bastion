@@ -98,6 +98,263 @@ def _build_launch_batch(
         ]
     )
 
+AGENT_PS1 = r"""$ErrorActionPreference = 'Continue'
+$port = 18722
+$logDir = Join-Path $env:LOCALAPPDATA 'bastion'
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+$logPath = Join-Path $logDir 'agent.log'
+
+function Write-AgentLog([string]$msg) {
+    try {
+        $ts = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+        [System.IO.File]::AppendAllText($logPath, "[$ts] $msg`r`n")
+    } catch {}
+}
+
+try {
+    $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, $port)
+    $listener.Start()
+    Write-AgentLog "Agent listening on 127.0.0.1:$port"
+} catch {
+    Write-AgentLog "Bind failed: $($_.Exception.Message)"
+    exit 1
+}
+
+$pattern = '^[A-Za-z0-9._\-@:+]+$'
+
+function Build-SshCommand($via, $mode, $h, $u, $s, $j, $p) {
+    if ($via -eq 'tailscale') {
+        switch ($mode) {
+            'direct' { $inner = "bastion-ssh $h $u" }
+            'new'    { $inner = "tmux new-session -s $s bastion-ssh $h $u" }
+            default  { $inner = "tmux new-session -A -s $s bastion-ssh $h $u" }
+        }
+        return 'ssh -t ' + $j + ' "' + $inner + '"'
+    } else {
+        $t = "$u@$h"
+        switch ($mode) {
+            'direct' { return "ssh -t -p $p $t" }
+            'new'    { return 'ssh -t -p ' + $p + ' ' + $t + ' "tmux new-session -s ' + $s + '"' }
+            default  { return 'ssh -t -p ' + $p + ' ' + $t + ' "tmux new-session -A -s ' + $s + '"' }
+        }
+    }
+}
+
+function Launch-Terminal($h, $sshCmd) {
+    $dir = Join-Path $env:LOCALAPPDATA 'bastion'
+    $bat = Join-Path $dir 'session.cmd'
+    $body = "@echo off`r`ntitle Bastion - $h`r`n$sshCmd`r`nif errorlevel 1 pause`r`n"
+    [System.IO.File]::WriteAllText($bat, $body, [System.Text.Encoding]::Default)
+    Write-AgentLog "Launch: $sshCmd"
+    $wt = Get-Command wt.exe -ErrorAction SilentlyContinue
+    if ($wt) {
+        Start-Process -FilePath 'wt.exe' -ArgumentList "-w 0 nt --title `"$h`" cmd /k `"$bat`""
+    } else {
+        Start-Process -FilePath 'cmd.exe' -ArgumentList "/k `"$bat`""
+    }
+}
+
+while ($true) {
+    try { $client = $listener.AcceptTcpClient() } catch { break }
+    try {
+        $stream = $client.GetStream()
+        $stream.ReadTimeout = 3000
+        $buf = New-Object byte[] 8192
+        $sb = [System.Text.StringBuilder]::new()
+        while ($true) {
+            $n = $stream.Read($buf, 0, $buf.Length)
+            if ($n -le 0) { break }
+            [void]$sb.Append([System.Text.Encoding]::ASCII.GetString($buf, 0, $n))
+            if ($sb.ToString().Contains("`r`n`r`n")) { break }
+            if ($sb.Length -gt 16384) { break }
+        }
+        $lines = $sb.ToString() -split "`r`n"
+        $parts = $lines[0] -split ' '
+        $method = $parts[0]
+        $path = if ($parts.Count -ge 2) { $parts[1] } else { '/' }
+
+        $origin = '*'
+        for ($i = 1; $i -lt $lines.Count; $i++) {
+            $hdr = $lines[$i]
+            if ([string]::IsNullOrEmpty($hdr)) { break }
+            if ($hdr -match '^Origin:\s*(.+)$') { $origin = $matches[1].Trim() }
+        }
+
+        $pathOnly = $path
+        $qstr = ''
+        $qIdx = $path.IndexOf('?')
+        if ($qIdx -ge 0) {
+            $pathOnly = $path.Substring(0, $qIdx)
+            $qstr = $path.Substring($qIdx + 1)
+        }
+        $q = @{}
+        foreach ($pair in ($qstr -split '&')) {
+            if (-not $pair) { continue }
+            $kv = $pair -split '=', 2
+            if ($kv.Count -eq 2) { $q[$kv[0]] = [System.Uri]::UnescapeDataString($kv[1]) }
+        }
+
+        $status = '200 OK'
+        $bodyText = ''
+        $shouldQuit = $false
+
+        if ($method -eq 'OPTIONS') {
+            $status = '204 No Content'
+        } elseif ($pathOnly -eq '/ping') {
+            $bodyText = 'ok'
+        } elseif ($pathOnly -eq '/quit') {
+            $bodyText = 'bye'
+            $shouldQuit = $true
+        } elseif ($pathOnly -eq '/launch' -and $method -eq 'GET') {
+            $via = if ($q['via']) { $q['via'] } else { 'tailscale' }
+            $mode = if ($q['mode']) { $q['mode'] } else { 'resume' }
+            $h = $q['host']
+            $u = if ($q['user']) { $q['user'] } else { 'root' }
+            $s = if ($q['session']) { $q['session'] } else { $h }
+            $j = $q['jumpbox']
+            $p = if ($q['port']) { $q['port'] } else { '22' }
+
+            $ok = $h -match $pattern -and $u -match $pattern -and $s -match $pattern -and $p -match $pattern
+            if ($via -eq 'tailscale') { $ok = $ok -and $j -match $pattern }
+
+            if (-not $ok) {
+                $status = '400 Bad Request'
+                $bodyText = 'invalid params'
+                Write-AgentLog "Reject: bad params host=$h user=$u session=$s port=$p jumpbox=$j"
+            } else {
+                $sshCmd = Build-SshCommand $via $mode $h $u $s $j $p
+                Launch-Terminal $h $sshCmd
+                $bodyText = 'ok'
+            }
+        } else {
+            $status = '404 Not Found'
+            $bodyText = 'not found'
+        }
+
+        $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($bodyText)
+        $resp = @(
+            "HTTP/1.1 $status",
+            "Access-Control-Allow-Origin: $origin",
+            "Access-Control-Allow-Methods: GET, OPTIONS",
+            "Access-Control-Allow-Headers: *",
+            "Access-Control-Allow-Private-Network: true",
+            "Vary: Origin",
+            "Content-Type: text/plain; charset=utf-8",
+            "Content-Length: $($bodyBytes.Length)",
+            "Connection: close",
+            ""
+        ) -join "`r`n"
+        $headerBytes = [System.Text.Encoding]::ASCII.GetBytes($resp + "`r`n")
+        $stream.Write($headerBytes, 0, $headerBytes.Length)
+        if ($bodyBytes.Length -gt 0) { $stream.Write($bodyBytes, 0, $bodyBytes.Length) }
+        $stream.Flush()
+
+        if ($shouldQuit) {
+            try { $client.Close() } catch {}
+            Write-AgentLog "Quit requested"
+            $listener.Stop()
+            exit 0
+        }
+    } catch {
+        Write-AgentLog "Request error: $($_.Exception.Message)"
+    } finally {
+        try { $client.Close() } catch {}
+    }
+}
+"""
+
+AGENT_VBS = r"""Set shell = CreateObject("WScript.Shell")
+ps1 = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%\bastion\bastion-agent.ps1")
+shell.Run "powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -NoProfile -File """ & ps1 & """", 0, False
+"""
+
+AGENT_INSTALL_BAT = r"""@echo off
+setlocal
+set "INSTALL_DIR=%LOCALAPPDATA%\bastion"
+set "AGENT_PS1=%INSTALL_DIR%\bastion-agent.ps1"
+set "AGENT_VBS=%INSTALL_DIR%\bastion-agent.vbs"
+set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+set "STARTUP_LNK=%STARTUP%\bastion-agent.lnk"
+
+echo Installing Bastion Agent...
+if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
+copy /Y "%~dp0bastion-agent.ps1" "%AGENT_PS1%" >nul || goto :fail
+copy /Y "%~dp0bastion-agent.vbs" "%AGENT_VBS%" >nul || goto :fail
+
+echo Stopping any previous agent...
+powershell -NoProfile -Command "try { (New-Object Net.WebClient).DownloadString('http://127.0.0.1:18722/quit') | Out-Null } catch {}"
+timeout /t 1 /nobreak >nul
+
+echo Creating startup shortcut...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$ws = New-Object -ComObject WScript.Shell;" ^
+  "$lnk = $ws.CreateShortcut('%STARTUP_LNK%');" ^
+  "$lnk.TargetPath = 'wscript.exe';" ^
+  "$lnk.Arguments = '\"%AGENT_VBS%\"';" ^
+  "$lnk.Save()" || goto :fail
+
+echo Starting agent...
+start "" wscript.exe "%AGENT_VBS%"
+timeout /t 1 /nobreak >nul
+
+echo Verifying agent...
+powershell -NoProfile -Command "try { $r = (New-Object Net.WebClient).DownloadString('http://127.0.0.1:18722/ping'); if ($r -eq 'ok') { exit 0 } else { exit 1 } } catch { exit 1 }"
+if errorlevel 1 (
+    echo [WARN] Agent did not respond on port 18722.
+    echo        Check %LOCALAPPDATA%\bastion\agent.log
+) else (
+    echo [OK] Agent running on 127.0.0.1:18722
+)
+
+echo.
+echo Auto-starts on login. Log: %LOCALAPPDATA%\bastion\agent.log
+echo.
+pause
+exit /b 0
+
+:fail
+echo [ERROR] Installation failed.
+pause
+exit /b 1
+"""
+
+AGENT_README = r"""Bastion Agent for Windows
+
+What it does:
+    A tiny local HTTP service on 127.0.0.1:18722. When you click
+    "Open Terminal" in the Bastion panel, the page sends a GET to
+    the agent, which launches Windows Terminal (wt.exe) with the
+    correct ssh + tmux command. True one-click, no registry.
+
+Install (no admin required):
+    1. Extract all files.
+    2. Double-click install-agent.bat.
+    3. Done. Go click "Open Terminal" in the panel.
+
+Files dropped:
+    %LOCALAPPDATA%\bastion\bastion-agent.ps1
+    %LOCALAPPDATA%\bastion\bastion-agent.vbs
+    %APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\bastion-agent.lnk
+
+Troubleshoot:
+    - Panel shows "agent 未运行，已下载 .bat" -> agent isn't running.
+      Double-click %LOCALAPPDATA%\bastion\bastion-agent.vbs to start it,
+      or re-run install-agent.bat.
+    - Check log: %LOCALAPPDATA%\bastion\agent.log
+    - Port 18722 in use? Edit bastion-agent.ps1 $port (also update
+      the panel's launcher-url if you change it).
+
+Uninstall:
+    1. Browse to http://127.0.0.1:18722/quit (stops the agent).
+    2. Delete the three files listed above.
+
+Requirements:
+    - Windows 10/11 (PowerShell 5+, built-in).
+    - OpenSSH client (Settings -> Apps -> Optional features).
+    - Windows Terminal recommended (wt.exe); falls back to cmd.exe.
+"""
+
+
 LAUNCHER_INSTALL_BAT = r"""@echo off
 setlocal
 set "INSTALL_DIR=%LOCALAPPDATA%\bastion"
@@ -899,9 +1156,29 @@ def api_launch() -> Response:
     )
 
 
+@app.route("/api/agent-setup")
+def api_agent_setup() -> Response:
+    """Download the Windows local-agent package (one-click terminal launch)."""
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("install-agent.bat", AGENT_INSTALL_BAT)
+        zf.writestr("bastion-agent.ps1", AGENT_PS1)
+        zf.writestr("bastion-agent.vbs", AGENT_VBS)
+        zf.writestr("README.txt", AGENT_README)
+    archive.seek(0)
+    return Response(
+        archive.getvalue(),
+        mimetype="application/zip",
+        headers={
+            "Content-Type": "application/zip",
+            "Content-Disposition": "attachment; filename=bastion-agent.zip",
+        },
+    )
+
+
 @app.route("/api/launcher-setup")
 def api_launcher_setup() -> Response:
-    """Download Windows protocol handler setup package."""
+    """Legacy protocol-handler package (kept for backward compatibility)."""
     archive = io.BytesIO()
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("bastion-install.bat", LAUNCHER_INSTALL_BAT)
