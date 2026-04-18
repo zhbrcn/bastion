@@ -169,14 +169,29 @@ if ($params.via -eq "tailscale") {
 $sshCmd = 'ssh ' + (($sshArgs | ForEach-Object { Quote-Arg $_ }) -join ' ')
 Write-LauncherLog "Resolved ssh command: $sshCmd"
 
-$wt = Get-Command wt.exe -ErrorAction SilentlyContinue
-if ($wt) {
-    Write-LauncherLog "Launching Windows Terminal"
-    $wtArgs = @("new-tab", "--title", $params.host, "cmd", "/k", $sshCmd)
-    Start-Process wt.exe -ArgumentList $wtArgs
-} else {
-    Write-LauncherLog "wt.exe not found, falling back to cmd.exe"
-    Start-Process cmd.exe -ArgumentList @("/k", $sshCmd)
+# Persist to a .cmd file so we never hit nested-quote issues in wt/cmd argv parsing.
+$sessionDir = Join-Path $env:LOCALAPPDATA 'bastion'
+New-Item -ItemType Directory -Force -Path $sessionDir | Out-Null
+$sessionBat = Join-Path $sessionDir 'last-session.cmd'
+$safeTitle = ($params.host -replace '["`]', '')
+$batBody = "@echo off`r`ntitle Bastion - $safeTitle`r`n$sshCmd`r`n"
+[System.IO.File]::WriteAllText($sessionBat, $batBody, [System.Text.Encoding]::Default)
+Write-LauncherLog "Wrote session cmd: $sessionBat"
+
+try {
+    $wt = Get-Command wt.exe -ErrorAction SilentlyContinue
+    if ($wt) {
+        Write-LauncherLog "Launching Windows Terminal: $($wt.Source)"
+        $wtArgLine = "-w 0 nt --title `"$safeTitle`" cmd /k `"$sessionBat`""
+        Start-Process -FilePath 'wt.exe' -ArgumentList $wtArgLine
+    } else {
+        Write-LauncherLog "wt.exe not found, falling back to cmd.exe"
+        Start-Process -FilePath 'cmd.exe' -ArgumentList "/k `"$sessionBat`""
+    }
+} catch {
+    $msg = $_.Exception.Message
+    Write-LauncherLog "Launch failed: $msg"
+    Start-Process cmd.exe -ArgumentList "/k echo Bastion launcher failed: $msg & echo Log: $logPath & pause"
 }
 """
 
@@ -201,6 +216,12 @@ Requirements:
 - Windows 10 or Windows 11
 - OpenSSH client installed
 - Windows Terminal recommended
+
+Troubleshoot:
+- If clicking "Open Terminal" does nothing, check %LOCALAPPDATA%\bastion\launcher.log
+- The last resolved command is saved to %LOCALAPPDATA%\bastion\last-session.cmd
+  You can double-click that file to run it manually and see any ssh error.
+- Make sure OpenSSH client is installed (Settings -> Apps -> Optional features -> OpenSSH Client)
 
 Uninstall:
 - Delete HKCU\Software\Classes\bastion
