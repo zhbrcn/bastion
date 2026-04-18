@@ -128,7 +128,7 @@ New-Item -ItemType Directory -Force -Path (Split-Path $logPath) | Out-Null
 function Write-LauncherLog {
     param([string]$Message)
     $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    Add-Content -Path $logPath -Value "[$timestamp] $Message"
+    [System.IO.File]::AppendAllText($logPath, "[$timestamp] $Message`r`n")
 }
 
 function Quote-Arg {
@@ -188,7 +188,7 @@ if ($tabbyExe) {
                 $quickConnect = "$($params.user)@$quickConnect"
             }
             if ($params.port -and $params.port -ne '22') {
-                $quickConnect = "$quickConnect:$($params.port)"
+                $quickConnect = "${quickConnect}:$($params.port)"
             }
             Write-LauncherLog "Launching Tabby executable: $tabbyExe"
             Write-LauncherLog "Launching Tabby quickConnect: $quickConnect"
