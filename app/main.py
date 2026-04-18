@@ -91,7 +91,7 @@ def _build_launch_batch(
     return "\r\n".join(
         [
             "@echo off",
-            f"title Bastion - {host}",
+            f"title {host}",
             ssh_cmd,
             "if errorlevel 1 pause",
             "",
@@ -151,7 +151,7 @@ function Launch-Terminal($h, $sshCmd) {
     } catch {}
     $suffix = [Guid]::NewGuid().ToString('N').Substring(0, 8)
     $bat = Join-Path $dir ("s-" + $suffix + ".cmd")
-    $body = "@echo off`r`ntitle Bastion - $h`r`n$sshCmd`r`nif errorlevel 1 pause`r`n"
+    $body = "@echo off`r`ntitle $h`r`n$sshCmd`r`nif errorlevel 1 pause`r`n"
     [System.IO.File]::WriteAllText($bat, $body, [System.Text.Encoding]::Default)
     Write-AgentLog "Launch: $sshCmd (bat=$bat)"
     $wt = Get-Command wt.exe -ErrorAction SilentlyContinue
@@ -405,183 +405,6 @@ Requirements:
     - Windows 10/11 with PowerShell 5+ (built-in).
     - OpenSSH client (Settings -> Apps -> Optional features).
     - Windows Terminal recommended (wt.exe); falls back to cmd.exe.
-"""
-
-
-LAUNCHER_INSTALL_BAT = r"""@echo off
-setlocal
-set "INSTALL_DIR=%LOCALAPPDATA%\bastion"
-set "LAUNCHER_PS1=%INSTALL_DIR%\bastion-launcher.ps1"
-
-echo Installing to %INSTALL_DIR%...
-if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
-
-copy /Y "%~dp0bastion-launcher.ps1" "%LAUNCHER_PS1%" >nul || goto :fail
-
-echo Registering bastion:// protocol...
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$launcher = [IO.Path]::Combine($env:SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');" ^
-  "$script = [IO.Path]::Combine($env:LOCALAPPDATA, 'bastion', 'bastion-launcher.ps1');" ^
-  "$protocol = 'HKCU:\Software\Classes\bastion';" ^
-  "$command = 'HKCU:\Software\Classes\bastion\shell\open\command';" ^
-  "New-Item -Path $protocol -Force | Out-Null;" ^
-  "Set-Item -Path $protocol -Value 'URL:Bastion Protocol';" ^
-  "New-ItemProperty -Path $protocol -Name 'URL Protocol' -Value '' -PropertyType String -Force | Out-Null;" ^
-  "New-Item -Path $command -Force | Out-Null;" ^
-  "$percent = [char]37;" ^
-  "$open = '""' + $launcher + '"" -NoProfile -ExecutionPolicy Bypass -File ""' + $script + '"" ""' + $percent + '1""';" ^
-  "$key = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Software\Classes\bastion\shell\open\command');" ^
-  "$key.SetValue('', $open, [Microsoft.Win32.RegistryValueKind]::String);" ^
-  "$key.Close();" || goto :fail
-
-echo.
-echo [OK] Installation complete.
-echo You can now click the "Open Terminal" button on the Bastion panel.
-echo.
-pause
-exit /b 0
-
-:fail
-echo.
-echo [ERROR] Installation failed.
-echo.
-pause
-exit /b 1
-"""
-
-LAUNCHER_EXECUTOR_BAT = r"""@echo off
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bastion-launcher.ps1" "%~1"
-"""
-
-LAUNCHER_EXECUTOR_PS1 = r"""param([string]$Url)
-
-# Parse bastion://connect?... and bastion://connect/?...
-if ($Url -notmatch '^bastion://connect/?\?(.+)$') {
-    Write-Host "Invalid URL: $Url"
-    Read-Host "Press Enter to exit"
-    exit 1
-}
-
-$query = $matches[1]
-$params = @{
-    host = ""; user = "root"; session = ""; mode = "resume"
-    jumpbox = ""; via = "tailscale"; port = "22"
-}
-
-foreach ($pair in $query -split '&') {
-    $kv = $pair -split '=', 2
-    if ($kv.Count -eq 2) {
-        $key = $kv[0]
-        $val = [System.Uri]::UnescapeDataString($kv[1])
-        if ($params.ContainsKey($key)) {
-            $params[$key] = $val
-        }
-    }
-}
-
-$logPath = Join-Path $env:LOCALAPPDATA 'bastion\launcher.log'
-New-Item -ItemType Directory -Force -Path (Split-Path $logPath) | Out-Null
-function Write-LauncherLog {
-    param([string]$Message)
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    [System.IO.File]::AppendAllText($logPath, "[$timestamp] $Message`r`n")
-}
-
-function Quote-Arg {
-    param([string]$Value)
-    if ([string]::IsNullOrEmpty($Value)) {
-        return '""'
-    }
-    if ($Value -match '[\s"]') {
-        return '"' + ($Value -replace '"', '\"') + '"'
-    }
-    return $Value
-}
-
-# Build tmux sub-command
-$tmuxCmd = switch ($params.mode) {
-    "direct" { "" }
-    "new"    { "tmux new-session -s $($params.session)" }
-    default  { "tmux new-session -A -s $($params.session)" }
-}
-
-# Build ssh arguments
-if ($params.via -eq "tailscale") {
-    if ($params.mode -eq "direct") {
-        $remote = "bastion-ssh $($params.host) $($params.user)"
-    } else {
-        $remote = "$tmuxCmd bastion-ssh $($params.host) $($params.user)"
-    }
-    $sshArgs = @("-t", $params.jumpbox, $remote)
-} else {
-    if ($params.mode -eq "direct") {
-        $sshArgs = @("-t", "-p", $params.port, "$($params.user)@$($params.host)")
-    } else {
-        $sshArgs = @("-t", "-p", $params.port, "$($params.user)@$($params.host)", $tmuxCmd)
-    }
-}
-
-# Build one ssh command string
-$sshCmd = 'ssh ' + (($sshArgs | ForEach-Object { Quote-Arg $_ }) -join ' ')
-Write-LauncherLog "Resolved ssh command: $sshCmd"
-
-# Persist to a .cmd file so we never hit nested-quote issues in wt/cmd argv parsing.
-$sessionDir = Join-Path $env:LOCALAPPDATA 'bastion'
-New-Item -ItemType Directory -Force -Path $sessionDir | Out-Null
-$sessionBat = Join-Path $sessionDir 'last-session.cmd'
-$safeTitle = ($params.host -replace '["`]', '')
-$batBody = "@echo off`r`ntitle Bastion - $safeTitle`r`n$sshCmd`r`n"
-[System.IO.File]::WriteAllText($sessionBat, $batBody, [System.Text.Encoding]::Default)
-Write-LauncherLog "Wrote session cmd: $sessionBat"
-
-try {
-    $wt = Get-Command wt.exe -ErrorAction SilentlyContinue
-    if ($wt) {
-        Write-LauncherLog "Launching Windows Terminal: $($wt.Source)"
-        $wtArgLine = "-w 0 nt --title `"$safeTitle`" cmd /k `"$sessionBat`""
-        Start-Process -FilePath 'wt.exe' -ArgumentList $wtArgLine
-    } else {
-        Write-LauncherLog "wt.exe not found, falling back to cmd.exe"
-        Start-Process -FilePath 'cmd.exe' -ArgumentList "/k `"$sessionBat`""
-    }
-} catch {
-    $msg = $_.Exception.Message
-    Write-LauncherLog "Launch failed: $msg"
-    Start-Process cmd.exe -ArgumentList "/k echo Bastion launcher failed: $msg & echo Log: $logPath & pause"
-}
-"""
-
-LAUNCHER_README = r"""Bastion Windows Launcher
-This package lets the browser open Windows Terminal directly from the Bastion panel.
-
-Install:
-1. Extract all files to any folder.
-2. Keep bastion-launcher.bat and bastion-launcher.ps1 together.
-3. Double-click bastion-install.bat. Admin rights are not required.
-4. Return to the Bastion panel and click "Open Terminal".
-
-First use:
-Your browser may ask whether this site can open the bastion:// protocol.
-Choose Allow, and optionally enable Always allow.
-
-Behavior:
-- Launches Windows Terminal (wt.exe) with the SSH command.
-- If wt.exe is not found, falls back to cmd.exe.
-
-Requirements:
-- Windows 10 or Windows 11
-- OpenSSH client installed
-- Windows Terminal recommended
-
-Troubleshoot:
-- If clicking "Open Terminal" does nothing, check %LOCALAPPDATA%\bastion\launcher.log
-- The last resolved command is saved to %LOCALAPPDATA%\bastion\last-session.cmd
-  You can double-click that file to run it manually and see any ssh error.
-- Make sure OpenSSH client is installed (Settings -> Apps -> Optional features -> OpenSSH Client)
-
-Uninstall:
-- Delete HKCU\Software\Classes\bastion
-- Delete %LOCALAPPDATA%\bastion
 """
 
 
@@ -1226,26 +1049,6 @@ def api_agent_setup() -> Response:
         headers={
             "Content-Type": "application/zip",
             "Content-Disposition": "attachment; filename=bastion-agent.zip",
-        },
-    )
-
-
-@app.route("/api/launcher-setup")
-def api_launcher_setup() -> Response:
-    """Legacy protocol-handler package (kept for backward compatibility)."""
-    archive = io.BytesIO()
-    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("bastion-install.bat", LAUNCHER_INSTALL_BAT)
-        zf.writestr("bastion-launcher.bat", LAUNCHER_EXECUTOR_BAT)
-        zf.writestr("bastion-launcher.ps1", LAUNCHER_EXECUTOR_PS1)
-        zf.writestr("README.txt", LAUNCHER_README)
-    archive.seek(0)
-    return Response(
-        archive.getvalue(),
-        mimetype="application/zip",
-        headers={
-            "Content-Type": "application/zip",
-            "Content-Disposition": "attachment; filename=bastion-win-launcher.zip",
         },
     )
 
