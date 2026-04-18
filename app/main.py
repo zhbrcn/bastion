@@ -141,11 +141,19 @@ function Build-SshCommand($via, $mode, $h, $u, $s, $j, $p) {
 }
 
 function Launch-Terminal($h, $sshCmd) {
-    $dir = Join-Path $env:LOCALAPPDATA 'bastion'
-    $bat = Join-Path $dir 'session.cmd'
+    $dir = Join-Path $env:LOCALAPPDATA 'bastion\sessions'
+    New-Item -ItemType Directory -Force -Path $dir | Out-Null
+    # Sweep *.cmd older than 1 day (best-effort).
+    try {
+        Get-ChildItem -Path $dir -Filter '*.cmd' -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-1) } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+    } catch {}
+    $suffix = [Guid]::NewGuid().ToString('N').Substring(0, 8)
+    $bat = Join-Path $dir ("s-" + $suffix + ".cmd")
     $body = "@echo off`r`ntitle Bastion - $h`r`n$sshCmd`r`nif errorlevel 1 pause`r`n"
     [System.IO.File]::WriteAllText($bat, $body, [System.Text.Encoding]::Default)
-    Write-AgentLog "Launch: $sshCmd"
+    Write-AgentLog "Launch: $sshCmd (bat=$bat)"
     $wt = Get-Command wt.exe -ErrorAction SilentlyContinue
     if ($wt) {
         Start-Process -FilePath 'wt.exe' -ArgumentList "-w 0 nt --title `"$h`" cmd /k `"$bat`""
@@ -223,8 +231,14 @@ while ($true) {
                 Write-AgentLog "Reject: bad params host=$h user=$u session=$s port=$p jumpbox=$j"
             } else {
                 $sshCmd = Build-SshCommand $via $mode $h $u $s $j $p
-                Launch-Terminal $h $sshCmd
-                $bodyText = 'ok'
+                try {
+                    Launch-Terminal $h $sshCmd
+                    $bodyText = 'ok'
+                } catch {
+                    $status = '500 Internal Server Error'
+                    $bodyText = 'launch failed: ' + $_.Exception.Message
+                    Write-AgentLog "Launch exception: $($_.Exception.Message)"
+                }
             }
         } else {
             $status = '404 Not Found'
