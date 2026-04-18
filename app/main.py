@@ -51,6 +51,52 @@ _PROBE_CACHE_SECONDS = 30.0
 _PROBE_CACHE: dict[tuple[str, int], tuple[float, bool]] = {}
 _PROBE_CACHE_LOCK = threading.Lock()
 _WINDOWS_INVALID_FILENAME = re.compile(r'[\\/:*?"<>|]+')
+_SAFE_LAUNCH_ARG = re.compile(r'^[A-Za-z0-9._\-@:+]+$')
+
+
+def _require_safe_launch_arg(value: str, field: str) -> str:
+    """Reject anything that would need escaping inside a .bat file."""
+    if not value or not _SAFE_LAUNCH_ARG.match(value):
+        raise ValueError(f"unsafe value for {field}: {value!r}")
+    return value
+
+
+def _build_launch_batch(
+    via: str,
+    host: str,
+    user: str,
+    session: str,
+    mode: str,
+    jumpbox: str,
+    port: str,
+) -> str:
+    """Build a minimal Windows .bat that opens an SSH session."""
+    if via == "tailscale":
+        if mode == "direct":
+            inner = f"bastion-ssh {host} {user}"
+        elif mode == "new":
+            inner = f"tmux new-session -s {session} bastion-ssh {host} {user}"
+        else:
+            inner = f"tmux new-session -A -s {session} bastion-ssh {host} {user}"
+        ssh_cmd = f'ssh -t {jumpbox} "{inner}"'
+    else:
+        target = f"{user}@{host}"
+        if mode == "direct":
+            ssh_cmd = f"ssh -t -p {port} {target}"
+        elif mode == "new":
+            ssh_cmd = f'ssh -t -p {port} {target} "tmux new-session -s {session}"'
+        else:
+            ssh_cmd = f'ssh -t -p {port} {target} "tmux new-session -A -s {session}"'
+
+    return "\r\n".join(
+        [
+            "@echo off",
+            f"title Bastion - {host}",
+            ssh_cmd,
+            "if errorlevel 1 pause",
+            "",
+        ]
+    )
 
 LAUNCHER_INSTALL_BAT = r"""@echo off
 setlocal
@@ -816,6 +862,39 @@ def api_batch_download() -> Response:
         headers={
             "Content-Type": "application/zip",
             "Content-Disposition": "attachment; filename=bastion-shortcuts.zip",
+        },
+    )
+
+
+@app.route("/api/launch")
+def api_launch() -> Response:
+    """Return a single-server .bat that opens wt.exe / cmd with the SSH session."""
+    via = (request.args.get("via") or "tailscale").strip() or "tailscale"
+    mode = (request.args.get("mode") or "resume").strip() or "resume"
+    host = (request.args.get("host") or "").strip()
+    user = (request.args.get("user") or "root").strip() or "root"
+    session = (request.args.get("session") or "").strip() or host
+    jumpbox = (request.args.get("jumpbox") or "").strip()
+    port = (request.args.get("port") or "22").strip() or "22"
+
+    try:
+        _require_safe_launch_arg(host, "host")
+        _require_safe_launch_arg(user, "user")
+        _require_safe_launch_arg(session, "session")
+        _require_safe_launch_arg(port, "port")
+        if via == "tailscale":
+            _require_safe_launch_arg(jumpbox, "jumpbox")
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    body = _build_launch_batch(via, host, user, session, mode, jumpbox, port)
+    filename = _sanitize_windows_filename(f"bastion-{host}") + ".bat"
+    return Response(
+        body,
+        mimetype="application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
         },
     )
 

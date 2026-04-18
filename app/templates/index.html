@@ -577,17 +577,14 @@
       </section>
 
       <section class="section">
-        <div style="font-weight: 600;">Windows 一键连接</div>
+        <div style="font-weight: 600;">Windows 终端</div>
         <div class="hint">
-          推荐：下载“浏览器启动器”后双击 install.bat 一次性安装，即可在面板
-          直接点击“打开终端”按钮启动 Windows Terminal。
+          点击服务器卡片上的“打开终端”按钮，浏览器会下载一个几百字节的 .bat，
+          双击即可用 Windows Terminal（或 cmd）启动 SSH。零安装，不碰注册表。
         </div>
         <div class="settings-actions">
-          <a class="button primary" href="/api/launcher-setup" download>
-            下载浏览器启动器（推荐）
-          </a>
           <a class="button" href="/api/batch-download" download>
-            下载独立 .bat 文件包
+            下载全部 .bat 文件包（可选）
           </a>
         </div>
       </section>
@@ -1039,8 +1036,16 @@
             });
             if (isAndroidMobile()) {
               showToast("正在打开 Bastion Bridge…");
+              window.location.href = `bastion://connect?${params.toString()}`;
+            } else {
+              const a = document.createElement("a");
+              a.href = `/api/launch?${params.toString()}`;
+              a.style.display = "none";
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              showToast("已下载启动脚本，双击即可连接");
             }
-            window.location.href = `bastion://connect?${params.toString()}`;
           });
         });
 
