@@ -98,7 +98,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bastion-launcher.ps1" 
 
 LAUNCHER_EXECUTOR_PS1 = r"""param([string]$Url)
 
-# 解析 bastion://connect?...
+# Parse bastion://connect?...
 if ($Url -notmatch '^bastion://connect\?(.+)$') {
     Write-Host "Invalid URL: $Url"
     Read-Host "Press Enter to exit"
@@ -141,14 +141,14 @@ function Quote-Arg {
     return $Value
 }
 
-# 构造 tmux 子命令
+# Build tmux sub-command
 $tmuxCmd = switch ($params.mode) {
     "direct" { "" }
     "new"    { "tmux new-session -s $($params.session)" }
     default  { "tmux new-session -A -s $($params.session)" }
 }
 
-# 构造完整 ssh 命令
+# Build ssh arguments
 if ($params.via -eq "tailscale") {
     if ($params.mode -eq "direct") {
         $remote = "bastion-ssh $($params.host) $($params.user)"
@@ -164,18 +164,20 @@ if ($params.via -eq "tailscale") {
     }
 }
 
-# 组装成单条 ssh 命令
+# Build one ssh command string
 $sshCmd = 'ssh ' + (($sshArgs | ForEach-Object { Quote-Arg $_ }) -join ' ')
 Write-LauncherLog "Resolved ssh command: $sshCmd"
 
-# 优先直接调用 Tabby 并把 tabby:// URL 作为参数传入
+# Prefer launching Tabby directly and pass a tabby:// URL as the argument
 $tabbyExe = $null
-$tabbyCmd = Get-Command tabby.exe -ErrorAction SilentlyContinue
-if ($tabbyCmd) {
-    $tabbyExe = $tabbyCmd.Source
-}
-if (-not $tabbyExe -and (Test-Path "$env:USERPROFILE\scoop\apps\tabby\current\Tabby.exe")) {
+if (Test-Path "$env:USERPROFILE\scoop\apps\tabby\current\Tabby.exe") {
     $tabbyExe = "$env:USERPROFILE\scoop\apps\tabby\current\Tabby.exe"
+}
+if (-not $tabbyExe) {
+    $tabbyCmd = Get-Command tabby.exe -ErrorAction SilentlyContinue
+    if ($tabbyCmd) {
+        $tabbyExe = $tabbyCmd.Source
+    }
 }
 if ($tabbyExe) {
     try {
@@ -186,11 +188,11 @@ if ($tabbyExe) {
         exit 0
     } catch {
         Write-LauncherLog "Tabby executable launch failed: $($_.Exception.Message)"
-        # Fall through to protocol or Windows Terminal if Tabby CLI launch fails.
+        # Fall through to protocol or Windows Terminal if Tabby launch fails.
     }
 }
 
-# 次选 Tabby 协议
+# Next: try the Tabby protocol
 $tabbyProtocol = Get-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\Software\Classes\tabby' -ErrorAction SilentlyContinue
 if (-not $tabbyProtocol) {
     $tabbyProtocol = Get-ItemProperty -Path 'Registry::HKEY_LOCAL_MACHINE\Software\Classes\tabby' -ErrorAction SilentlyContinue
@@ -207,7 +209,7 @@ if ($tabbyProtocol) {
     }
 }
 
-# 回退到 Windows Terminal
+# Fall back to Windows Terminal
 $wt = Get-Command wt.exe -ErrorAction SilentlyContinue
 if ($wt) {
     Write-LauncherLog "Falling back to Windows Terminal"
