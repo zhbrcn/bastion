@@ -263,59 +263,89 @@ while ($true) {
 }
 """
 
-AGENT_VBS = r'''Set shell = CreateObject("WScript.Shell")
-ps1 = shell.ExpandEnvironmentStrings("%LOCALAPPDATA%\bastion\bastion-agent.ps1")
-shell.Run "powershell.exe -WindowStyle Hidden -ExecutionPolicy Bypass -NoProfile -File """ & ps1 & """", 0, False
-'''
+AGENT_INSTALL_PS1 = r"""$ErrorActionPreference = 'Stop'
+$taskName = 'BastionAgent'
+$installDir = Join-Path $env:LOCALAPPDATA 'bastion'
+$agentPs1 = Join-Path $installDir 'bastion-agent.ps1'
+
+if (-not (Test-Path $agentPs1)) {
+    Write-Error "Agent script not found: $agentPs1"
+    exit 1
+}
+
+# Stop any previous agent.
+try { (New-Object Net.WebClient).DownloadString('http://127.0.0.1:18722/quit') | Out-Null } catch {}
+Start-Sleep -Seconds 1
+
+$userId = if ($env:USERDOMAIN) { "$env:USERDOMAIN\$env:USERNAME" } else { $env:USERNAME }
+
+$argString = '-WindowStyle Hidden -ExecutionPolicy Bypass -NoProfile -File "' + $agentPs1 + '"'
+$action    = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $argString
+$trigger   = New-ScheduledTaskTrigger -AtLogOn -User $userId
+$settings  = New-ScheduledTaskSettingsSet -Hidden -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero)
+$principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited
+$task      = New-ScheduledTask -Action $action -Trigger $trigger -Settings $settings -Principal $principal
+
+Register-ScheduledTask -TaskName $taskName -InputObject $task -Force | Out-Null
+Write-Host "[OK] Scheduled task '$taskName' registered for $userId."
+
+Start-ScheduledTask -TaskName $taskName
+Start-Sleep -Seconds 2
+
+$verified = $false
+for ($i = 0; $i -lt 5; $i++) {
+    try {
+        $r = (New-Object Net.WebClient).DownloadString('http://127.0.0.1:18722/ping')
+        if ($r -eq 'ok') { $verified = $true; break }
+    } catch {}
+    Start-Sleep -Seconds 1
+}
+
+if ($verified) {
+    Write-Host "[OK] Agent responded on 127.0.0.1:18722"
+    exit 0
+} else {
+    Write-Warning "Agent did not respond on port 18722."
+    Write-Warning "Check $installDir\agent.log"
+    exit 1
+}
+"""
 
 AGENT_INSTALL_BAT = r"""@echo off
 setlocal
 set "INSTALL_DIR=%LOCALAPPDATA%\bastion"
-set "AGENT_PS1=%INSTALL_DIR%\bastion-agent.ps1"
-set "AGENT_VBS=%INSTALL_DIR%\bastion-agent.vbs"
-set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
-set "STARTUP_LNK=%STARTUP%\bastion-agent.lnk"
 
 echo Installing Bastion Agent...
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
-copy /Y "%~dp0bastion-agent.ps1" "%AGENT_PS1%" >nul || goto :fail
-copy /Y "%~dp0bastion-agent.vbs" "%AGENT_VBS%" >nul || goto :fail
+copy /Y "%~dp0bastion-agent.ps1" "%INSTALL_DIR%\bastion-agent.ps1" >nul || goto :fail
 
-echo Stopping any previous agent...
-powershell -NoProfile -Command "try { (New-Object Net.WebClient).DownloadString('http://127.0.0.1:18722/quit') | Out-Null } catch {}"
-timeout /t 1 /nobreak >nul
-
-echo Creating startup shortcut...
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$ws = New-Object -ComObject WScript.Shell;" ^
-  "$lnk = $ws.CreateShortcut('%STARTUP_LNK%');" ^
-  "$lnk.TargetPath = 'wscript.exe';" ^
-  "$lnk.Arguments = '\"%AGENT_VBS%\"';" ^
-  "$lnk.Save()" || goto :fail
-
-echo Starting agent...
-start "" wscript.exe "%AGENT_VBS%"
-timeout /t 1 /nobreak >nul
-
-echo Verifying agent...
-powershell -NoProfile -Command "try { $r = (New-Object Net.WebClient).DownloadString('http://127.0.0.1:18722/ping'); if ($r -eq 'ok') { exit 0 } else { exit 1 } } catch { exit 1 }"
-if errorlevel 1 (
-    echo [WARN] Agent did not respond on port 18722.
-    echo        Check %LOCALAPPDATA%\bastion\agent.log
-) else (
-    echo [OK] Agent running on 127.0.0.1:18722
-)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-agent.ps1"
+if errorlevel 1 goto :fail
 
 echo.
-echo Auto-starts on login. Log: %LOCALAPPDATA%\bastion\agent.log
+echo [OK] Installation complete.
+echo Auto-starts on next logon. Log: %LOCALAPPDATA%\bastion\agent.log
+echo Uninstall: run uninstall-agent.bat
 echo.
 pause
 exit /b 0
 
 :fail
+echo.
 echo [ERROR] Installation failed.
 pause
 exit /b 1
+"""
+
+AGENT_UNINSTALL_BAT = r"""@echo off
+echo Stopping agent...
+powershell -NoProfile -Command "try { (New-Object Net.WebClient).DownloadString('http://127.0.0.1:18722/quit') | Out-Null } catch {}"
+echo Removing scheduled task...
+powershell -NoProfile -Command "try { Unregister-ScheduledTask -TaskName 'BastionAgent' -Confirm:$false } catch {}"
+echo Deleting %LOCALAPPDATA%\bastion ...
+rmdir /S /Q "%LOCALAPPDATA%\bastion"
+echo Done.
+pause
 """
 
 AGENT_README = r"""Bastion Agent for Windows
@@ -324,32 +354,41 @@ What it does:
     A tiny local HTTP service on 127.0.0.1:18722. When you click
     "Open Terminal" in the Bastion panel, the page sends a GET to
     the agent, which launches Windows Terminal (wt.exe) with the
-    correct ssh + tmux command. True one-click, no registry.
+    correct ssh + tmux command. True one-click, no registry,
+    no VBScript.
 
 Install (no admin required):
-    1. Extract all files.
+    1. Extract all files to one folder.
     2. Double-click install-agent.bat.
-    3. Done. Go click "Open Terminal" in the panel.
+    3. Wait for "[OK] Agent responded on 127.0.0.1:18722".
+    4. Go click "Open Terminal" in the panel.
+
+How it survives reboots:
+    A user-scope Scheduled Task named "BastionAgent" is registered
+    with an "At log on" trigger. It runs PowerShell hidden.
+    You can see it in Task Scheduler under Task Scheduler Library.
 
 Files dropped:
     %LOCALAPPDATA%\bastion\bastion-agent.ps1
-    %LOCALAPPDATA%\bastion\bastion-agent.vbs
-    %APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\bastion-agent.lnk
+    %LOCALAPPDATA%\bastion\agent.log     (runtime log)
+    %LOCALAPPDATA%\bastion\session.cmd   (last launched ssh command)
 
 Troubleshoot:
-    - Panel shows "agent 未运行，已下载 .bat" -> agent isn't running.
-      Double-click %LOCALAPPDATA%\bastion\bastion-agent.vbs to start it,
-      or re-run install-agent.bat.
-    - Check log: %LOCALAPPDATA%\bastion\agent.log
-    - Port 18722 in use? Edit bastion-agent.ps1 $port (also update
-      the panel's launcher-url if you change it).
+    - Panel shows "Agent 未运行，已下载 .bat" -> agent isn't running.
+      Run install-agent.bat again, or manually:
+          Start-ScheduledTask -TaskName BastionAgent
+    - Check log:  %LOCALAPPDATA%\bastion\agent.log
+    - Port 18722 in use? Edit $port in bastion-agent.ps1 (and the
+      panel's fetch URL in index.html) and re-run install.
 
 Uninstall:
-    1. Browse to http://127.0.0.1:18722/quit (stops the agent).
-    2. Delete the three files listed above.
+    Double-click uninstall-agent.bat.
+    (Or: browse http://127.0.0.1:18722/quit, then run
+     schtasks /Delete /TN BastionAgent /F, then delete
+     %LOCALAPPDATA%\bastion.)
 
 Requirements:
-    - Windows 10/11 (PowerShell 5+, built-in).
+    - Windows 10/11 with PowerShell 5+ (built-in).
     - OpenSSH client (Settings -> Apps -> Optional features).
     - Windows Terminal recommended (wt.exe); falls back to cmd.exe.
 """
@@ -1162,8 +1201,9 @@ def api_agent_setup() -> Response:
     archive = io.BytesIO()
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("install-agent.bat", AGENT_INSTALL_BAT)
+        zf.writestr("install-agent.ps1", AGENT_INSTALL_PS1)
+        zf.writestr("uninstall-agent.bat", AGENT_UNINSTALL_BAT)
         zf.writestr("bastion-agent.ps1", AGENT_PS1)
-        zf.writestr("bastion-agent.vbs", AGENT_VBS)
         zf.writestr("README.txt", AGENT_README)
     archive.seek(0)
     return Response(
