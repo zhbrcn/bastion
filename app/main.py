@@ -55,18 +55,17 @@ _WINDOWS_INVALID_FILENAME = re.compile(r'[\\/:*?"<>|]+')
 LAUNCHER_INSTALL_BAT = r"""@echo off
 setlocal
 set "INSTALL_DIR=%LOCALAPPDATA%\bastion"
-set "LAUNCHER_BAT=%INSTALL_DIR%\bastion-launcher.bat"
 set "LAUNCHER_PS1=%INSTALL_DIR%\bastion-launcher.ps1"
 
 echo Installing to %INSTALL_DIR%...
 if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
 
-copy /Y "%~dp0bastion-launcher.bat" "%LAUNCHER_BAT%" >nul || goto :fail
 copy /Y "%~dp0bastion-launcher.ps1" "%LAUNCHER_PS1%" >nul || goto :fail
 
 echo Registering bastion:// protocol...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$launcher = [IO.Path]::Combine($env:LOCALAPPDATA, 'bastion', 'bastion-launcher.bat');" ^
+  "$launcher = [IO.Path]::Combine($env:SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');" ^
+  "$script = [IO.Path]::Combine($env:LOCALAPPDATA, 'bastion', 'bastion-launcher.ps1');" ^
   "$protocol = 'HKCU:\Software\Classes\bastion';" ^
   "$command = 'HKCU:\Software\Classes\bastion\shell\open\command';" ^
   "New-Item -Path $protocol -Force | Out-Null;" ^
@@ -74,8 +73,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "New-ItemProperty -Path $protocol -Name 'URL Protocol' -Value '' -PropertyType String -Force | Out-Null;" ^
   "New-Item -Path $command -Force | Out-Null;" ^
   "$percent = [char]37;" ^
-  "$open = '""' + $launcher + '"" ""' + $percent + '1""';" ^
-  "Set-Item -Path $command -Value $open;" || goto :fail
+  "$open = '""' + $launcher + '"" -NoProfile -ExecutionPolicy Bypass -File ""' + $script + '"" ""' + $percent + '1""';" ^
+  "$key = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Software\Classes\bastion\shell\open\command');" ^
+  "$key.SetValue('', $open, [Microsoft.Win32.RegistryValueKind]::String);" ^
+  "$key.Close();" || goto :fail
 
 echo.
 echo [OK] Installation complete.
